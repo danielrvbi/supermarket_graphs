@@ -1,0 +1,23 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# macOS / editor junk
+.DS_Store
+__pycache__/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Personal purchase data
+old_data.csv
+raw_receipts/
+v1/archive/
+v1/processed/
+v1/final_data.pickle
+v1/final_data.xlsx
+*.csv
+*.pkl
+*.pickle
