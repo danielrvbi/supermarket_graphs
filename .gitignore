@@ -21,3 +21,10 @@ v1/final_data.xlsx
 *.csv
 *.pkl
 *.pickle
+
+# v2 pipeline outputs / state (personal purchase data)
+processed/
+v2/checkpoints/
+*.db
+*.sqlite
+*.sqlite3
