@@ -22,6 +22,8 @@ from v2.ah_pipeline.graph import build_ah_pipeline, run_ah_receipt
 from v2.jumbo_pipeline.graph import build_jumbo_pipeline, run_jumbo_receipt
 from v2.shared.audit_log import AuditLogger
 from v2.shared.cost_report import CostReport
+from v2.shared.output_writer import OutputWriter
+from v2.shared.database_writer import DatabaseWriter
 from v2.debug.inspect import inspect_receipt, list_checkpoints
 
 
@@ -298,6 +300,25 @@ def print_summary(store: str, results: list):
 
     # Print cost report
     print_token_report()
+
+    # Print output statistics
+    print_output_stats()
+
+
+def print_output_stats():
+    """Print output statistics (files + database)."""
+    print("\n" + "#" * 70)
+    print("# OUTPUT STATISTICS")
+    print("#" * 70)
+
+    writer = OutputWriter()
+    writer.print_stats()
+
+    # Also print database stats
+    db = DatabaseWriter(settings.PROCESSED_DB)
+    db.print_stats()
+
+    print("#" * 70)
 
 
 def print_token_report():

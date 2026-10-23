@@ -43,13 +43,32 @@ def merge_node(state: JumboPipelineState) -> JumboPipelineState:
     """
     Merge deterministic and LLM extraction results for Jumbo.
     """
+    import re
+    
     det_items = state.get("deterministic_items", [])
     llm_items = state.get("llm_items", [])
 
     merged = []
 
     def normalize_name(name: str) -> str:
+        """Normalize name for matching: uppercase, remove spaces and trailing P."""
+        if not name:
+            return ""
+        # Remove trailing 'P' (price-marked indicator)
+        name = re.sub(r"\s+P\s*$", "", name.strip(), flags=re.IGNORECASE)
         return name.upper().strip().replace(" ", "")
+
+    def clean_item_name(name: str) -> str:
+        """Clean item name: remove trailing 'P' indicator, extra spaces."""
+        if not name:
+            return name
+        # Remove trailing ' P' or ' P ' (price-marked indicator)
+        name = re.sub(r"\s+P\s*$", "", name.strip(), flags=re.IGNORECASE)
+        # Remove ' P' in middle followed by price-like patterns
+        name = re.sub(r"\s+P\s+\d", " ", name, flags=re.IGNORECASE)
+        # Collapse multiple spaces
+        name = re.sub(r"\s+", " ", name).strip()
+        return name
 
     llm_by_name = {normalize_name(item.get("item_name", "")): item for item in llm_items}
 
@@ -59,6 +78,9 @@ def merge_node(state: JumboPipelineState) -> JumboPipelineState:
         llm_item = llm_by_name.get(name_norm)
 
         merged_item = det_item.copy()
+        # Clean the item name
+        merged_item["item_name"] = clean_item_name(merged_item.get("item_name", ""))
+        
         if llm_item:
             merged_item["_confidence"] = 0.95
         else:
@@ -75,6 +97,8 @@ def merge_node(state: JumboPipelineState) -> JumboPipelineState:
         name_norm = normalize_name(llm_item.get("item_name", ""))
         if name_norm not in det_names:
             llm_item_copy = llm_item.copy()
+            # Clean the item name
+            llm_item_copy["item_name"] = clean_item_name(llm_item_copy.get("item_name", ""))
             llm_item_copy["_confidence"] = 0.60
             for key in list(llm_item_copy.keys()):
                 if key.startswith("_"):

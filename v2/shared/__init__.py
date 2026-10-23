@@ -13,6 +13,7 @@ from v2.shared.audit_log import AuditLogger
 from v2.shared.token_tracker import TokenTracker, TokenUsageCallback
 from v2.shared.pricing import get_pricing, get_display_name, calculate_cost
 from v2.shared.cost_report import CostReport
+from v2.shared.database_writer import DatabaseWriter
 
 __all__ = [
     "get_mistral_llm",
@@ -29,4 +30,5 @@ __all__ = [
     "get_display_name",
     "calculate_cost",
     "CostReport",
+    "DatabaseWriter",
 ]

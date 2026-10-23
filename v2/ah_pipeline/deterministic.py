@@ -35,8 +35,9 @@ PATTERNS = {
     ),
 
     # Regular item with only total (no unit price): "1  SNOEP TOMAAT  1,99"
+    # May have optional VAT indicator suffix: "1  COCA-COLA  5,09 B"
     "item_one_price": re.compile(
-        r"^\s*(\d+)\s+(.+?)\s{2,}([\d]+,[\d]{2})\s*$"
+        r"^\s*(\d+)\s+(.+?)\s{2,}([\d]+,[\d]{2})\s*([A-Z])?\s*$"
     ),
 
     # Rows to IGNORE (never extract as items)
@@ -192,10 +193,10 @@ def parse_ah_line(line: str) -> Optional[dict]:
             "_source": "deterministic",
         }
 
-    # Try regular item with one price (total only): "1  SNOEP TOMAAT  1,99"
+    # Try regular item with one price (total only): "1  SNOEP TOMAAT  1,99" or "1  COCA-COLA  5,09 B"
     match = PATTERNS["item_one_price"].match(line)
     if match:
-        qty_str, name, total_str = match.groups()
+        qty_str, name, total_str, vat = match.groups()
         qty = int(qty_str)
         name = name.strip()
 

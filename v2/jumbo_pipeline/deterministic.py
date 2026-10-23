@@ -22,10 +22,10 @@ from v2.jumbo_pipeline.state import JumboPipelineState
 
 # Regex patterns for Jumbo receipt lines
 PATTERNS = {
-    # Quantity line: "2 X 1,99" or "4 X 1,99" or "2X1,89" (no spaces)
-    # May have total on same line: "2 X 1,99    3,98"
+    # Quantity line: "2 X 1,99" or "4X 1,99 3,98" or "4X 1,99 P 7,96" (with P indicator)
+    # May have total on same line and optional "P" price-marked indicator
     "quantity_line": re.compile(
-        r"^(\d+)\s*X\s*([\d]+,[\d]{2})(?:\s+([\d]+,[\d]{2}))?\s*$",
+        r"^(\d+)\s*X\s*([\d]+,[\d]{2})(?:\s+P)?(?:\s+([\d]+,[\d]{2}))?\s*$",
         re.IGNORECASE
     ),
 
@@ -38,8 +38,8 @@ PATTERNS = {
     # Weight in product name: "400gr", "360gr", "800g"
     "weight_in_name": re.compile(r"(\d+)\s*(?:gr|g)\b", re.IGNORECASE),
 
-    # "P" indicator (price-marked item)
-    "price_marked": re.compile(r"\s+P\s+", re.IGNORECASE),
+    # "P" indicator (price-marked item) - matches " P " in middle or " P" at end
+    "price_marked": re.compile(r"\s+P(?:\s+|$)", re.IGNORECASE),
 
     # Date line (IGNORE as item): "zaterdag 24 mei 2025" or "Vrijdag 3 juli 2026"
     "date_line": re.compile(
@@ -52,9 +52,12 @@ PATTERNS = {
     "year_at_end": re.compile(r"\s+(\d{4})\s*$"),
 
     # Lines to IGNORE
+    # Note: JUMBO is matched only as standalone logo line (^JUMBO\s*$), not as prefix
+    # This allows items like "Jumbo Aardbeien" to be parsed correctly
     "ignore_lines": re.compile(
         r"^\s*("
-        r"JUMBO|"                    # Logo
+        r"JUMBO\s*$|"                # Logo (standalone only!)
+        r"JUNIBO\s*$|"               # Logo with OCR typo
         r"Jouw\s+boodschappen|"      # "Your groceries"
         r"Producten|"                # "Products" header
         r"Totaal|"                   # Total lines
@@ -81,7 +84,7 @@ PATTERNS = {
         r"EMBALLAGE|"                # Packaging deposit
         r"\d{1,2}:\d{2}|"            # Time (12:19)
         r"om\s+\d{1,2}:\d{2}|"       # "om 12:19"
-        r"uur"                       # "uur" (hour)
+        r"uur\s*$"                   # "uur" (hour) at end
         r")",
         re.IGNORECASE
     ),
@@ -123,8 +126,8 @@ def is_valid_item_name(name: str) -> bool:
     # Reject date-like strings
     if PATTERNS["date_line"].search(name):
         return False
-    # Reject if it's just a quantity pattern like "2 X 1,99"
-    if re.match(r"^\d+\s*X\s*[\d,]+$", name.strip(), re.IGNORECASE):
+    # Reject if it's just a quantity pattern like "2 X 1,99" or "4X 1,99 P"
+    if re.match(r"^\d+\s*X\s*[\d,]+(\s+P)?$", name.strip(), re.IGNORECASE):
         return False
     # Reject day names
     if re.match(r"^(maandag|dinsdag|woensdag|donderdag|vrijdag|zaterdag|zondag)\b", name.strip(), re.IGNORECASE):

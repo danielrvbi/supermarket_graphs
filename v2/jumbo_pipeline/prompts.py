@@ -11,10 +11,10 @@ JUMBO RECEIPT FORMAT:
 - Multi-quantity items show "2 X 1,99" on a separate line below the product name
 - Weight items have weight in the product name (e.g., "Jb Soepgroente 400gr", "Zalmfilet 360gr")
 - Discount rows start with "ACTIE" and have negative amounts
-- Some items have a "P" indicator (price-marked/weighed items)
+- Some items have a "P" indicator (price-marked/weighed items) - DO NOT include "P" in the item name
 
 EXTRACTION RULES:
-1. Keep item names EXACTLY as written on the receipt.
+1. Keep item names EXACTLY as written on the receipt, EXCEPT remove the "P" indicator (price-marked flag).
 2. Do NOT translate, normalize, infer, or expand abbreviations.
 3. Extract ONLY information explicitly visible on the receipt.
 4. OCR may have errors - do your best to interpret the text.
