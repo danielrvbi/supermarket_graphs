@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[96]:
-
-
 import pandas as pd
 from typing import (
 Literal,
@@ -15,21 +12,7 @@ from pydantic import BaseModel
 from datetime import date
 from dotenv import load_dotenv; load_dotenv()
 
-
-# In[ ]:
-
-
-
-
-
-# In[39]:
-
-
 tavily_key = os.environ.get("TAVILY_KEY",""); bool(tavily_key)
-
-
-# In[40]:
-
 
 class RawItem(BaseModel):
     product_name: str
@@ -40,7 +23,6 @@ class RawItem(BaseModel):
 class RawReceipt(BaseModel): # This is applied per image
     date_of_purchase: date
     items: List[BaseItem]
-
 
 FIXED_CATEGORIES = ['Frutas & Verduras', 'Lácteos', 'Carnes', 'Bebidas', 
                     'Panadería', 'Hogar', 'Pasta/Sopas', 'Snacks', 'Dulces', 'Higiene', 'Salud']
@@ -57,12 +39,6 @@ class FinalItem(BaseModel):
     paid_amount: float
     quantity_price: float # price per g, OR price per unit
 
-
-
-
-# In[29]:
-
-
 df_names = (
     pd.read_csv("da budget - ElSuper-2.csv").dropna(subset=["Product"])
     .groupby(["Product","Producto","Category","Subcategory"]).size()
@@ -71,7 +47,6 @@ df_names = (
 )
 
 df_names.head(10)
-
 
 # # Project Context: Dutch Grocery Receipt Pipeline
 # 
@@ -142,9 +117,6 @@ df_names.head(10)
 # * *Status:* Planning phase completed. Target schemas and pipeline architecture defined.
 # * *Next Action:* Implement the specific extraction scripts (either Jumbo Image parser or AH PDF parser) and test against sample files.
 
-# In[73]:
-
-
 category_sub_mapping = (
     pd.read_csv("da budget - ElSuper-2.csv")
     .dropna(subset=["Product"])
@@ -155,60 +127,16 @@ category_sub_mapping = (
     .to_dict()
 )
 
-
-# In[76]:
-
-
 category_sub_mapping.keys()
 
-
-# In[75]:
-
-
 category_sub_mapping["BEBIDAS"]
-
-
-# In[92]:
-
 
 with open("llm_classify_category.json", "r") as f:
     wiri = pd.Series(json.load(f))
 
 print(wiri.shape)
 
-
-# In[ ]:
-
-
-
-
-
-# In[93]:
-
-
 pd.Series(wiri).value_counts()
 
-
-# In[100]:
-
-
 pyperclip.copy(json.dumps(wiri.iloc[50:100].to_dict(), indent=4, ensure_ascii=False))
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
 

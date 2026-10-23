@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[324]:
-
-
 from pydantic import BaseModel, Field
 from typing import Literal, List
 from datetime import date
@@ -14,12 +11,10 @@ from dotenv import load_dotenv; load_dotenv()
 jjson = lambda x: json.dumps(x, indent=4, ensure_ascii=False)
 ppjson = lambda x: print(jjson(x))
 
-
 def save_to_jsonl(receipt: RawReceipt, output_path: str):
     """Appends the parsed Pydantic model to a JSONL file."""
     with open(output_path, 'a', encoding='utf-8') as f:
         f.write(receipt.model_dump_json() + '\n')
-
 
 def save_processed_history(dic, file_path):
     # 1. Try to load the existing data first
@@ -53,29 +48,11 @@ def load_processed_history_non_empty(file_path):
 from langchain_ollama import ChatOllama
 tavily_key = os.environ.get("TAVILY_KEY",""); bool(tavily_key)
 
-
-# In[302]:
-
-
 list_ah_raw_files = get_files_by_creation_date("raw_receipts/ah/", False)
 list_jumbo_raw_files = get_files_by_creation_date("raw_receipts/jumbo/", False)
 
-
-# In[246]:
-
-
 ah_processed = load_processed_history_non_empty("processed/ah_processed.json")
 jumbo_processed = load_processed_history_non_empty("processed/jumbo_processed.json")
-
-
-# In[323]:
-
-
-
-
-
-# In[260]:
-
 
 llms = {
     model_name : (
@@ -89,12 +66,7 @@ llms = {
     for model_name in ["mistral-small3.2:24b"]
 }
 
-
-# In[262]:
-
-
 llms["mistral-small3.2:24b"].invoke("hello")
-
 
 # # Utils
 
@@ -172,9 +144,6 @@ def crop_receipt_image(image_path: str, output_path: str = None) -> bool:
     crop_receipt_image(file_path)
 # ## Base Model
 
-# In[235]:
-
-
 class RawItem(BaseModel):
     item_name: str
 
@@ -190,10 +159,6 @@ class RawItem(BaseModel):
 class RawReceipt(BaseModel):
     date_of_purchase: str
     items: List[RawItem]
-
-
-# In[236]:
-
 
 from pathlib import Path
 from datetime import datetime
@@ -237,12 +202,7 @@ def get_files_by_creation_date(folder_path=".", oldest_first=True, file_names_on
 
     return [i[0] for i in ordered_list]
 
-
-
 # # AH
-
-# In[238]:
-
 
 import pdfplumber
 from langchain_ollama import ChatOllama
@@ -263,7 +223,6 @@ def parse_ah_pdf_with_llm(file_path: str, model_name: str = "mistral-small3.2:24
 
     # Extract the raw text first
     receipt_text = extract_text_from_pdf(file_path)
-
 
     parser = PydanticOutputParser(pydantic_object=RawReceipt)
 
@@ -318,11 +277,7 @@ Receipt Text:
         .model_dump()
     )
 
-
 # # Run AH
-
-# In[257]:
-
 
 import json
 import tqdm
@@ -378,33 +333,13 @@ def process_batch(file_list, extract_function, file_name, model_name="mistral-sm
         for path, error in errors.items():
             print(f"  - {path}: {error}")
 
-
-# In[258]:
-
-
 process_batch(
     list_ah_raw_files[:],
     parse_ah_pdf_with_llm,
     "processed/ah_processed.json"
 )
 
-
-# In[ ]:
-
-
-
-
-
 # ## Review AH
-
-# In[ ]:
-
-
-
-
-
-# In[247]:
-
 
 def get_df(file_name):
     return (
@@ -423,52 +358,12 @@ def get_df(file_name):
         )
     )
 
-
-# In[250]:
-
-
 df_ah = get_df("processed/ah_processed.json")
 df_ah.info()
 
-
-# In[254]:
-
-
 df_ah.groupby("file_path")["line_total_paid_amount"].sum().reset_index()
 
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[215]:
-
-
 pyperclip.copy(jjson(get_df("processed/ah_processed.json").to_dict("records")))
-
-
-# In[ ]:
-
-
-
-
-
-# In[34]:
-
 
 from tavily import TavilyClient
 
@@ -513,23 +408,7 @@ def get_supermarket_product_info(store: Literal["AH","JUMBO"], product_name: str
     except Exception as e:
         return f"Tavily Search Error: {str(e)}"
 
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
 # # Jumbo
-
-# In[295]:
-
 
 import cv2
 import pytesseract
@@ -554,8 +433,6 @@ def extract_text_from_image(image_path: str) -> str:
     raw_text = pytesseract.image_to_string(gray, config=custom_config)
 
     return raw_text
-
-
 
 class RawItemJumbo(BaseModel):
     item_name: str
@@ -664,18 +541,10 @@ Receipt Text:
         .model_dump()
     )
 
-
-# In[301]:
-
-
 res = parse_jumbo_image_with_llm("raw_receipts/jumbo/IMG_4833.png", "mistral-small3.2:24b")
 pd.DataFrame(res["items"])
 
-
 # # Jumbo Batch
-
-# In[305]:
-
 
 process_batch(
     list_jumbo_raw_files[:],
@@ -683,37 +552,9 @@ process_batch(
     "processed/jumbo_processed.json"
 )
 
-
 # # Photo Receipts
-
-# In[320]:
-
 
 processed_jumbo = load_processed_history("processed/jumbo_processed.json")
 
-
-# In[321]:
-
-
-# In[322]:
-
-
 save_processed_history(processed_jumbo, "processed/jumbo_processed.json")
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
 

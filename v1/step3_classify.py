@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[178]:
-
-
 from pydantic import BaseModel, Field
 from typing import Literal, List
 import datetime as dt
@@ -21,10 +18,6 @@ ppjson = lambda x: print(jjson(x))
 dsc = Dsc = {"ascending":False}
 index_merge = {"left_index":True, 'right_index': True}
 
-
-# In[35]:
-
-
 dict_names: Dict[str, Dict[str, str]] = (
     pd.read_csv("da budget - ElSuper-2.csv")
     .dropna(subset=["Product"])
@@ -37,15 +30,7 @@ dict_names: Dict[str, Dict[str, str]] = (
 
 pd.Series(dict_names).head(10)
 
-
-# In[49]:
-
-
 dict_names["AH AARDAPPEL"]
-
-
-# In[39]:
-
 
 df_asis = (
     pd.read_json("processed/joined_clean_processed.json")
@@ -57,24 +42,12 @@ df_asis = (
 
 df_asis.info()
 
-
-# In[40]:
-
-
 item_names_original = df_asis["item_name"].unique()
 len(item_names_original)
 
-
 # # Tier 2. Embedding Match
 
-# In[122]:
-
-
 df_asis.head()
-
-
-# In[126]:
-
 
 df_match2 = (
     df_asis.loc[
@@ -83,7 +56,6 @@ df_match2 = (
     .drop_duplicates(subset=["item_name"])
     [["item_name","supermarket"]]
 )
-
 
 item_names_match2 = df_match2["item_name"].unique().tolist()
 len(item_names_match2)
@@ -110,8 +82,6 @@ def download_and_verify_model(model_name: str = "BAAI/bge-m3"):
         print("\n[WARNING] Model was loaded, but the expected cache directory wasn't found.")
 
 download_and_verify_model()
-# In[107]:
-
 
 import logging
 import tqdm
@@ -232,24 +202,10 @@ def tier_2_semantic_search(
     logger.info(f"Tier 2 Complete. Triggered prefix-stripping on {retry_count} items, improving the score for {improvement_count} of them.")
     return results_dict
 
-
-# In[108]:
-
-
 matches_tier2 = tier_2_semantic_search(
     item_names_original=item_names_match2,
     dict_names=dict_names
 )
-
-
-# In[ ]:
-
-
-
-
-
-# In[187]:
-
 
 df_matches_tier2 = (
     pd.Series(matches_tier2)
@@ -259,11 +215,7 @@ df_matches_tier2 = (
 
 df_matches_tier2.head()
 
-
 # # Tavily Searches
-
-# In[183]:
-
 
 import os
 import json
@@ -360,23 +312,11 @@ def search_product_context_tavily(record) -> Dict[str, Any]:
 
     return (supermarket, item_name, output)
 
-
-# In[171]:
-
-
 df_matches_tier2_jsonl = pd.Series(df_match2.to_dict("records"))
 df_matches_tier2_jsonl.head()
 
-
-# In[188]:
-
-
 tavily_res = df_matches_tier2_jsonl.progress_apply(search_product_context_tavily)
 tavily_res.head()
-
-
-# In[194]:
-
 
 df_matches_tier3 = (
     tavily_res
@@ -387,11 +327,7 @@ df_matches_tier3 = (
 
 df_matches_tier3.head()
 
-
 # # LLM Marching
-
-# In[250]:
-
 
 def create_llm_input(row):
     payload = {"item_name": row.name} | row.to_dict()
@@ -400,10 +336,6 @@ def create_llm_input(row):
         payload = {k:(v if ('closest_object' not in k) and (k!="max_score") else None) for k,v in payload.items()}
 
     return payload
-
-
-# In[252]:
-
 
 df_matches_for_llm = (
     pd.merge(
@@ -417,10 +349,6 @@ df_matches_for_llm = (
 )
 
 df_matches_for_llm.info()
-
-
-# In[266]:
-
 
 from typing import Literal, Dict, Any
 from pydantic import BaseModel, Field
@@ -440,10 +368,6 @@ class Layer2Output(BaseModel):
     product_es: str = Field(description="The translated or conceptualized generic name of the product in Spanish.")
     subcategory: str = Field(description="A granular subcategory classification in Spanish matching the nature of the product")
 
-
-# In[281]:
-
-
 llms = {
     model_name : (
         ChatOllama(
@@ -458,15 +382,7 @@ llms = {
 
 llms["mistral-small3.2:24b"].invoke("Hello")
 
-
-# In[274]:
-
-
 df_matches_for_llm["llm_payload"].iloc[0]
-
-
-# In[283]:
-
 
 import os
 import json
@@ -536,21 +452,7 @@ def classify_category(payload: Dict[str, Any], model_name: str = "mistral-small3
         # If an error happens, we don't cache anything and fall back gracefully
         return None 
 
-
-# In[284]:
-
-
 df_matches_for_llm["FINAL_CATEGORY"] = df_matches_for_llm["llm_payload"].progress_apply(classify_category)
-
-
-# In[ ]:
-
-
-
-
-
-# In[317]:
-
 
 import os
 import json
@@ -628,10 +530,6 @@ def classify_subcategory(payload: Dict[str, Any], category: str, model_name: str
         # If an error happens (e.g., model hallucinates outside the Literal), return None to flag it
         return None
 
-
-# In[293]:
-
-
 import pandas as pd
 
 category_sub_mapping = (
@@ -663,17 +561,9 @@ new_columns_df = df_matches_for_llm.progress_apply(apply_layer_2, axis=1)
 # 3. Assign the newly created columns back to your main DataFrame
 df_matches_for_llm[["FINAL_PRODUCTO_ES", "FINAL_SUBCATEGORY"]] = new_columns_df[["product_es", "subcategory"]].map(lambda x: str(x).upper().strip())
 
-
-# In[320]:
-
-
 df_matches_for_llm["FINAL_SUBCATEGORY"].value_counts()
 
-
 # # Final Join
-
-# In[324]:
-
 
 df_item_final = (
     pd.concat([
@@ -690,10 +580,6 @@ df_item_final = (
 )
 
 df_item_final.info()
-
-
-# In[338]:
-
 
 # 1. Define the mapping of current columns to new names
 rename_dict = {
@@ -727,10 +613,6 @@ desired_order = [
     "Store",
 ]
 
-
-# In[342]:
-
-
 df_final = (
     df_asis
     .merge(
@@ -751,21 +633,7 @@ df_final = (
 
 df_final.info()
 
-
-# In[343]:
-
-
 df_final.to_pickle("final_data.pickle")
 
-
-# In[344]:
-
-
 df_final.to_excel("final_data.xlsx",index=None)
-
-
-# In[ ]:
-
-
-
 

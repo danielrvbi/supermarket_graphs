@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[102]:
-
-
 from pydantic import BaseModel, Field
 from typing import Literal, List
 import datetime as dt
@@ -14,8 +11,6 @@ import json, os
 from dotenv import load_dotenv; load_dotenv()
 jjson = lambda x: json.dumps(x, indent=4, ensure_ascii=False)
 ppjson = lambda x: print(jjson(x))
-
-
 
 def save_processed_history(dic, file_path):
     # 1. Try to load the existing data first
@@ -48,10 +43,6 @@ def load_processed_history_non_empty(file_path):
 
 tavily_key = os.environ.get("TAVILY_KEY",""); bool(tavily_key)
 
-
-# In[12]:
-
-
 def get_df(file_name):
     return (
         pd.concat([
@@ -69,11 +60,7 @@ def get_df(file_name):
         )
     )
 
-
 # # AH
-
-# In[177]:
-
 
 df_ah = (
     get_df("processed/ah_processed.json")
@@ -90,10 +77,6 @@ df_ah = (
     )
 )
 df_ah.info()
-
-
-# In[178]:
-
 
 (
     df_ah
@@ -131,11 +114,7 @@ df_ah.info()
     .pipe(lambda df: df["line_total_paid_amount"].div(df["price_per_measurement_unit"]))
 )
 
-
 # # JUMBO
-
-# In[179]:
-
 
 import pandas as pd
 import re
@@ -178,10 +157,6 @@ def parse_dutch_dates(dates):
     # Convert to pandas datetime objects
     return pd.to_datetime(standardized_dates)
 
-
-# In[185]:
-
-
 df_jumbo = (
     get_df("processed/jumbo_processed.json")
     .assign(
@@ -203,11 +178,7 @@ df_jumbo.info()
 
 df_jumbo.sample(10)
 
-
 # # Join
-
-# In[283]:
-
 
 df_spmkt = (
     pd.concat([df_ah, df_jumbo],ignore_index=True)
@@ -219,10 +190,6 @@ df_spmkt = (
 )
 
 df_spmkt.info()
-
-
-# In[291]:
-
 
 def _clean_single_row(row: pd.Series) -> pd.Series:
     """
@@ -253,11 +220,9 @@ def _clean_single_row(row: pd.Series) -> pd.Series:
         row["price_per_measurement_unit"] = round(paid_amount / row['measurement_quantity'],2)
         return row
 
-
     if raw_name not in ["DUVEL 666",'4 FORMAG',"ML","MACH3","HEMA","GR","CL","48+"] and re.findall(r"\d+",raw_name):
 
         # Ensure paid_amount is treated as a float, defaulting to 0.0 if missing
-
 
         # -----------------------------------------
         # Edge Case 3: Mathematical Bundles (e.g., "10+2", "12X330")
@@ -304,7 +269,6 @@ def _clean_single_row(row: pd.Series) -> pd.Series:
             row['item_name'] = raw_name[:match_trailing_num.start()].strip()
             return row
 
-
     # Default: Return AS-IS
     return row
 
@@ -322,10 +286,6 @@ def clean_receipt_data(df: pd.DataFrame) -> pd.DataFrame:
 
     return df_cleaned
 
-
-# In[292]:
-
-
 df_spmkt_clean = (
     df_spmkt
     .pipe(clean_receipt_data)
@@ -334,27 +294,5 @@ df_spmkt_clean = (
     )
 )
 
-
-# In[299]:
-
-
 df_spmkt_clean.to_json("processed/joined_clean_processed.json",orient="records",date_format="iso")
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
 
