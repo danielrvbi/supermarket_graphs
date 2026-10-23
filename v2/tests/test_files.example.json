@@ -1,0 +1,58 @@
+{
+  "ah": [
+    {
+      "id": "AH-1",
+      "path": "raw_receipts/ah/AH_kassabon_YYYY-MM-DD_HHMM_STORE_1.pdf",
+      "date": "YYYY-MM-DD",
+      "period": "earliest"
+    },
+    {
+      "id": "AH-2",
+      "path": "raw_receipts/ah/AH_kassabon_YYYY-MM-DD_HHMM_STORE_2.pdf",
+      "date": "YYYY-MM-DD",
+      "period": "early"
+    },
+    {
+      "id": "AH-3",
+      "path": "raw_receipts/ah/AH_kassabon_YYYY-MM-DD_HHMM_STORE_3.pdf",
+      "date": "YYYY-MM-DD",
+      "period": "middle"
+    },
+    {
+      "id": "AH-4",
+      "path": "raw_receipts/ah/AH_kassabon_YYYY-MM-DD_HHMM_STORE_4.pdf",
+      "date": "YYYY-MM-DD",
+      "period": "latest"
+    }
+  ],
+  "jumbo": [
+    {
+      "id": "J-1",
+      "path": "raw_receipts/jumbo/receipt_1.png",
+      "date": "YYYY-MM-DD",
+      "period": "earliest",
+      "format": "Screenshot"
+    },
+    {
+      "id": "J-2",
+      "path": "raw_receipts/jumbo/receipt_2.png",
+      "date": "YYYY-MM-DD",
+      "period": "early",
+      "format": "Screenshot"
+    },
+    {
+      "id": "J-3",
+      "path": "raw_receipts/jumbo/receipt_3.png",
+      "date": "YYYY-MM-DD",
+      "period": "middle",
+      "format": "Screenshot"
+    },
+    {
+      "id": "J-4",
+      "path": "raw_receipts/jumbo/receipt_4.png",
+      "date": "YYYY-MM-DD",
+      "period": "latest",
+      "format": "Screenshot"
+    }
+  ]
+}
