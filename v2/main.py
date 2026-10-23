@@ -10,6 +10,10 @@ Usage:
     python -m v2.main test jumbo              # Run Jumbo live tests
     python -m v2.main test all                # Run all live tests
     python -m v2.main stats                   # Show processing statistics
+    python -m v2.main normalize               # Normalize processed data (deterministic)
+    python -m v2.main normalize --store ah    # Normalize AH only
+    python -m v2.main normalize --rebuild     # Clear and rebuild normalized table
+    python -m v2.main normalize --dry-run     # Preview normalization changes
     python -m v2.main inspect <thread_id>     # Inspect checkpoints for a receipt
 """
 
@@ -93,6 +97,12 @@ def show_stats():
     OutputWriter().print_stats()
 
 
+def run_normalization():
+    """Run normalization script."""
+    from v2.run_normalization import main as normalize_main
+    normalize_main()
+
+
 def inspect_receipt(thread_id: str, store: str = "ah"):
     """Inspect checkpoints for a receipt."""
     from v2.debug.inspect import inspect_receipt as do_inspect
@@ -121,6 +131,10 @@ def main():
         test_main()
     elif command == "stats":
         show_stats()
+    elif command == "normalize":
+        # Pass remaining args to normalization script
+        sys.argv = [sys.argv[0]] + sys.argv[2:]
+        run_normalization()
     elif command == "inspect" and len(sys.argv) >= 3:
         store = sys.argv[3] if len(sys.argv) >= 4 else "ah"
         inspect_receipt(sys.argv[2], store)

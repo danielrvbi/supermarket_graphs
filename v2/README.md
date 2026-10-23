@@ -175,6 +175,108 @@ All output goes to `processed/` (v1 files are untouched):
 
 ---
 
+## Normalization (Step 2)
+
+After extraction, run the deterministic normalization script to clean and standardize data.
+
+**No LLM calls — 100% deterministic rules ported from V1 `step2_normalization.py`.**
+
+### Usage
+
+```bash
+# Normalize all receipts (reads processed_data, writes normalized_data)
+python -m v2.main normalize
+
+# Normalize specific store
+python -m v2.main normalize --store ah
+python -m v2.main normalize --store jumbo
+
+# Clear and rebuild normalized table
+python -m v2.main normalize --rebuild
+
+# Preview changes without writing
+python -m v2.main normalize --dry-run
+
+# Limit items (for testing)
+python -m v2.main normalize --limit 100
+```
+
+### What It Does
+
+| Rule | Description | Example |
+|------|-------------|---------|
+| `name_uppercase` | Standardize item names | `"cola zero"` → `"COLA ZERO"` |
+| `date_standardized` | Normalize dates to ISO format | `"2024/03/08"` → `"2024-03-08"` |
+| `date_parse_dutch` | Parse Dutch dates (Jumbo) | `"19 januari 2026"` → `"2026-01-19"` |
+| `month_derived` | Add month for grouping | `"2026-01-19"` → `"2026-01-01"` |
+| `weight_to_kg` | Convert grams to kg | `250g` → `0.25 kg` |
+| `clean_scharrelei` | Detect egg pack size by price | `€6.99` → 20-pack, `€2.49` → 6-pack |
+| `clean_bundle_plus` | Parse "10+2" bundles | `"COLA 10+2"` → qty=12 |
+| `clean_bundle_x` | Parse "12X330" bundles | `"BIER 12X330"` → qty=12 |
+| `clean_pack_identifier` | Extract pack sizes | `"HEINEKEN 12P"` → qty=12 |
+| `clean_trailing_price` | Remove price artifacts | `"HAM 3,75"` → `"HAM"` |
+| `fix_line_total_from_qty_times_price` | Fix total = qty × price | AH arithmetic fix |
+| `fix_quantity_from_total_div_price` | Fix qty = total / price | AH arithmetic fix |
+| `price_recalc` | Calculate missing ppu | Jumbo: `ppu = total / qty` |
+| `price_recalc_final` | Final ppu = total / qty | After all cleaning |
+| `filter_stati` | Remove deposit items | Filter "STATIEGELD" items |
+| `round_values` | Round to 3 decimals | `1.23456` → `1.235` |
+
+### Database Tables
+
+| Table | Description | Rows |
+|-------|-------------|------|
+| `processed_data` | Raw extracted data (unchanged) | 3,205 items |
+| `normalized_data` | Cleaned, standardized data | 3,165 items |
+
+**Note:** `normalized_data` has fewer rows due to UNIQUE constraint deduplication.
+
+### Example: Before vs After
+
+**Before (processed_data):**
+```json
+{
+  "item_name": "HEINEKEN 12P",
+  "measurement_quantity": 1.0,
+  "price_per_measurement_unit": 12.15,
+  "line_total_paid_amount": 12.15
+}
+```
+
+**After (normalized_data):**
+```json
+{
+  "item_name": "HEINEKEN",
+  "measurement_quantity": 12.0,
+  "price_per_measurement_unit": 1.01,
+  "line_total_paid_amount": 12.15,
+  "normalization_rules": ["name_uppercase", "clean_pack_identifier", "price_recalc_final", ...]
+}
+```
+
+### Querying Normalized Data
+
+```sql
+-- Price history for an item
+SELECT date_of_purchase, store, price_per_measurement_unit
+FROM normalized_data
+WHERE item_name = 'COLA ZERO'
+ORDER BY date_of_purchase;
+
+-- Monthly spending by category
+SELECT month_of_purchase, store, SUM(line_total_paid_amount) as total
+FROM normalized_data
+GROUP BY month_of_purchase, store;
+
+-- Average price per item
+SELECT item_name, AVG(price_per_measurement_unit) as avg_price, COUNT(*) as purchases
+FROM normalized_data
+GROUP BY item_name
+ORDER BY avg_price DESC;
+```
+
+---
+
 ## Output Schema (V1-Compatible)
 
 ```json
@@ -260,6 +362,14 @@ v2/
 ├── schemas/          # V1-compatible Pydantic models
 ├── shared/           # Validators, output writer, audit log, Mistral client
 │   └── validators/   # arithmetic, reconciliation, duplicates, sanity
+├── normalization/    # Deterministic normalization (Step 2)
+│   ├── normalizer.py    # Main orchestrator
+│   └── rules/           # Individual cleaning rules
+│       ├── item_cleaner.py      # Edge cases (eggs, bundles, packs)
+│       ├── date_parser.py       # Dutch date parsing
+│       ├── unit_normalizer.py   # Weight g→kg conversion
+│       ├── arithmetic_fixer.py  # Fix qty × price ≠ total
+│       └── name_standardizer.py # Name cleanup
 ├── ah_pipeline/      # AH-specific (PDF)
 │   ├── preprocess.py    # pdfplumber extraction
 │   ├── deterministic.py # Regex table parser
@@ -277,7 +387,9 @@ v2/
 ├── checkpoints/      # SQLite databases
 ├── debug/            # Inspect/resume tools
 ├── review/           # CLI review interface
-└── tests/            # Live test runner
+├── tests/            # Live test runner + normalization tests
+├── run_normalization.py  # Normalization CLI script
+└── main.py           # Main entry point (includes normalize command)
 ```
 
 ---
