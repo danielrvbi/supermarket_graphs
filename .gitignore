@@ -28,3 +28,6 @@ v2/checkpoints/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local test receipt list (real filenames contain dates/store numbers)
+v2/tests/test_files.local.json
