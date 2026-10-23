@@ -1,0 +1,31 @@
+# V2 Pipeline Requirements
+
+# Core
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+
+# LangChain + LangGraph + Mistral
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-mistralai>=0.2.0
+langgraph>=0.2.0
+langgraph-checkpoint-sqlite>=2.0.0
+
+# PDF processing (AH)
+pdfplumber>=0.10.0
+
+# Image processing + OCR (Jumbo)
+opencv-python>=4.8.0
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Utilities
+tqdm>=4.65.0
+
+# Development
+pytest>=7.4.0
