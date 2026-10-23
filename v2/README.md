@@ -6,6 +6,22 @@ Deterministic + AI-validated extraction for AH (PDF) and Jumbo (image) receipts.
 
 ---
 
+## Stages
+
+Like v1 (`step1_extraction.py` → `step2_normalization.py` → ...), v2 runs as a sequence
+of stages. Each stage lives in its own folder and hands off to the next through a table
+in `processed/processed_data.db`.
+
+| Stage | Folder | Input | Output | Run |
+|-------|--------|-------|--------|-----|
+| 1. Extraction | `stage1_extraction/` | `raw_receipts/` | `processed_data` | `python -m v2.main extract-all` |
+| 2. Normalization | `stage2_normalization/` | `processed_data` | `normalized_data` | `python -m v2.main normalize` |
+| 3. Classification | `stage3_classification/` | `normalized_data` | `classified_data` | *(planned)* |
+
+Rule: a stage imports from `common/` and may read the previous stage's `store.py`, never a later stage.
+
+---
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -27,25 +43,25 @@ Get your Mistral API key from: https://console.mistral.ai/
 
 ```bash
 # Test AH pipeline (4 receipts: earliest, early, middle, latest)
-python -m v2.tests.test_live ah
+python -m v2.stage1_extraction.tests.test_live ah
 
 # Test Jumbo pipeline (4 receipts: earliest, early, middle, latest)
-python -m v2.tests.test_live jumbo
+python -m v2.stage1_extraction.tests.test_live jumbo
 
 # Test both
-python -m v2.tests.test_live all
+python -m v2.stage1_extraction.tests.test_live all
 ```
 
 ### 4. Process Receipts
 
 ```bash
 # Process single receipt
-python -m v2.main ah "raw_receipts/ah/AH_kassabon_YYYY-MM-DD_HHMM_STORE.pdf"
-python -m v2.main jumbo "raw_receipts/jumbo/receipt.png"
+python -m v2.main extract ah "raw_receipts/ah/AH_kassabon_YYYY-MM-DD_HHMM_STORE.pdf"
+python -m v2.main extract jumbo "raw_receipts/jumbo/receipt.png"
 
 # Process entire folder
-python -m v2.main ah-batch raw_receipts/ah
-python -m v2.main jumbo-batch raw_receipts/jumbo
+python -m v2.main extract-batch ah raw_receipts/ah
+python -m v2.main extract-batch jumbo raw_receipts/jumbo
 
 # Show statistics
 python -m v2.main stats
@@ -117,8 +133,8 @@ preprocess → deterministic → llm_extract → merge → validate
 Every node execution is saved to a SQLite database. You can inspect and resume from any point.
 
 ```python
-from v2.debug.inspect import inspect_receipt, list_checkpoints
-from v2.debug.resume import resume_failed_receipt
+from v2.stage1_extraction.debug.inspect import inspect_receipt, list_checkpoints
+from v2.stage1_extraction.debug.resume import resume_failed_receipt
 
 # Inspect a receipt's pipeline flow
 inspect_receipt("ah_AH_kassabon_YYYY-MM-DD_HHMM_STORE", store="ah")
@@ -144,17 +160,17 @@ Receipts with confidence < 0.95 go to the review queue.
 
 ```bash
 # List receipts needing review
-python -m v2.review.cli list --ah
-python -m v2.review.cli list --jumbo
+python -m v2.stage1_extraction.review.cli list --ah
+python -m v2.stage1_extraction.review.cli list --jumbo
 
 # Show receipt details
-python -m v2.review.cli show "raw_receipts/ah/..." --ah
+python -m v2.stage1_extraction.review.cli show "raw_receipts/ah/..." --ah
 
 # Approve a receipt
-python -m v2.review.cli approve "raw_receipts/ah/..." --ah
+python -m v2.stage1_extraction.review.cli approve "raw_receipts/ah/..." --ah
 
 # Reject a receipt
-python -m v2.review.cli reject "raw_receipts/ah/..." --ah
+python -m v2.stage1_extraction.review.cli reject "raw_receipts/ah/..." --ah
 ```
 
 ---
@@ -175,7 +191,7 @@ All output goes to `processed/` (v1 files are untouched):
 
 ---
 
-## Normalization (Step 2)
+## Stage 2: Normalization
 
 After extraction, run the deterministic normalization script to clean and standardize data.
 
@@ -332,9 +348,9 @@ Overall confidence is a weighted average of:
 
 ## Test Files
 
-Test receipts are configured in `v2/tests/test_files.local.json` (gitignored, since
+Test receipts are configured in `v2/stage1_extraction/tests/test_files.local.json` (gitignored, since
 filenames contain purchase dates and store numbers). Copy
-`v2/tests/test_files.example.json` and fill in your own paths.
+`v2/stage1_extraction/tests/test_files.example.json` and fill in your own paths.
 
 ### AH (4 receipts)
 | ID | Period |
@@ -358,38 +374,45 @@ filenames contain purchase dates and store numbers). Copy
 
 ```
 v2/
-├── config/           # Settings (MISTRAL_KEY, thresholds)
-├── schemas/          # V1-compatible Pydantic models
-├── shared/           # Validators, output writer, audit log, Mistral client
-│   └── validators/   # arithmetic, reconciliation, duplicates, sanity
-├── normalization/    # Deterministic normalization (Step 2)
-│   ├── normalizer.py    # Main orchestrator
-│   └── rules/           # Individual cleaning rules
-│       ├── item_cleaner.py      # Edge cases (eggs, bundles, packs)
-│       ├── date_parser.py       # Dutch date parsing
-│       ├── unit_normalizer.py   # Weight g→kg conversion
-│       ├── arithmetic_fixer.py  # Fix qty × price ≠ total
-│       └── name_standardizer.py # Name cleanup
-├── ah_pipeline/      # AH-specific (PDF)
-│   ├── preprocess.py    # pdfplumber extraction
-│   ├── deterministic.py # Regex table parser
-│   ├── llm_extract.py   # Mistral extraction
-│   ├── verifier.py      # AH AI verifier
-│   ├── graph.py         # LangGraph assembly
-│   └── prompts.py       # AH prompts
-├── jumbo_pipeline/   # Jumbo-specific (Image)
-│   ├── preprocess.py    # OCR + crop
-│   ├── deterministic.py # Regex line parser
-│   ├── llm_extract.py   # Mistral extraction
-│   ├── verifier.py      # Jumbo AI verifier
-│   ├── graph.py         # LangGraph assembly
-│   └── prompts.py       # Jumbo prompts
-├── checkpoints/      # SQLite databases
-├── debug/            # Inspect/resume tools
-├── review/           # CLI review interface
-├── tests/            # Live test runner + normalization tests
-├── run_normalization.py  # Normalization CLI script
-└── main.py           # Main entry point (includes normalize command)
+├── main.py                  # Unified CLI, dispatches to stage runners
+├── common/                  # Cross-stage infrastructure
+│   ├── settings.py          # Settings (MISTRAL_KEY, paths, thresholds)
+│   ├── db.py                # SQLiteStore base class for stage tables
+│   ├── mistral_client.py    # Mistral LLM factory
+│   ├── token_tracker.py     # Token usage tracking
+│   ├── pricing.py           # Model pricing
+│   └── cost_report.py       # Cost reports
+├── stage1_extraction/       # Stage 1: raw receipts → processed_data
+│   ├── run.py               # Single / folder / all-remaining runners
+│   ├── store.py             # processed_data table
+│   ├── schemas.py           # V1-compatible Pydantic models
+│   ├── output_writer.py     # clean/review/rejected JSON + DB insert
+│   ├── audit_log.py         # Decision audit trail
+│   ├── validators/          # arithmetic, reconciliation, duplicates, sanity
+│   ├── ah/                  # AH-specific (PDF)
+│   │   ├── preprocess.py    # pdfplumber extraction
+│   │   ├── deterministic.py # Regex table parser
+│   │   ├── llm_extract.py   # Mistral extraction
+│   │   ├── verifier.py      # AH AI verifier
+│   │   ├── graph.py         # LangGraph assembly
+│   │   └── prompts.py       # AH prompts
+│   ├── jumbo/               # Jumbo-specific (Image), same layout as ah/
+│   ├── debug/               # Inspect/resume LangGraph checkpoints
+│   ├── review/              # CLI review interface
+│   └── tests/               # Live test runner (calls Mistral)
+├── stage2_normalization/    # Stage 2: processed_data → normalized_data
+│   ├── run.py               # Normalization CLI
+│   ├── store.py             # normalized_data table
+│   ├── normalizer.py        # Main orchestrator
+│   ├── rules/               # Individual cleaning rules
+│   │   ├── item_cleaner.py      # Edge cases (eggs, bundles, packs)
+│   │   ├── date_parser.py       # Dutch date parsing
+│   │   ├── unit_normalizer.py   # Weight g→kg conversion
+│   │   ├── arithmetic_fixer.py  # Fix qty × price ≠ total
+│   │   └── name_standardizer.py # Name cleanup
+│   └── tests/               # Deterministic unit tests (pytest)
+├── stage3_classification/   # Stage 3: normalized_data → classified_data (planned)
+└── checkpoints/             # LangGraph SQLite databases (gitignored)
 ```
 
 ---
@@ -413,7 +436,7 @@ pip install -r requirements.txt
 python -m v2.main inspect <thread_id> ah
 
 # Resume from last checkpoint
-from v2.debug.resume import resume_failed_receipt
+from v2.stage1_extraction.debug.resume import resume_failed_receipt
 resume_failed_receipt(pipeline, thread_id, store="ah")
 ```
 

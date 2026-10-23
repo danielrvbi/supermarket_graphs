@@ -30,4 +30,4 @@ v2/checkpoints/
 *.sqlite3
 
 # Local test receipt list (real filenames contain dates/store numbers)
-v2/tests/test_files.local.json
+v2/stage1_extraction/tests/test_files.local.json
