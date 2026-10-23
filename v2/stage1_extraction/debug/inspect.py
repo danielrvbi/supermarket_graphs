@@ -33,21 +33,30 @@ def list_checkpoints(
         store: "ah" or "jumbo"
 
     Returns:
-        List of checkpoint info dicts
+        List of checkpoint info dicts, oldest first
     """
     checkpointer = get_checkpointer(store)
     config = {"configurable": {"thread_id": thread_id}}
-    history = list(checkpointer.list(config))
+    # checkpointer.list() yields newest first
+    history = reversed(list(checkpointer.list(config)))
 
     checkpoints = []
     for cp in history:
-        state = cp.checkpoint
+        state = cp.checkpoint.get("channel_values", {})
+        # Node that produced this checkpoint = last entry appended to processing_steps
+        steps = state.get("processing_steps") or []
+        # Pending nodes are recorded as "branch:to:<node>" channels
+        next_nodes = [
+            ch.removeprefix("branch:to:")
+            for ch in cp.checkpoint.get("updated_channels") or []
+            if ch.startswith("branch:to:")
+        ]
         checkpoints.append({
-            "checkpoint_id": cp.checkpoint_id,
+            "checkpoint_id": cp.config["configurable"]["checkpoint_id"],
             "thread_id": cp.config["configurable"]["thread_id"],
-            "node_name": cp.metadata.get("source", "unknown"),
-            "created_at": cp.metadata.get("created_at", "unknown"),
-            "next_nodes": cp.next,
+            "node_name": steps[-1] if steps else cp.metadata.get("source", "unknown"),
+            "created_at": cp.checkpoint.get("ts", "unknown"),
+            "next_nodes": next_nodes,
             "items_count": len(state.get("merged_items", [])),
             "confidence": state.get("overall_confidence", 0.0),
             "status": state.get("final_status", "in_progress"),
@@ -82,7 +91,7 @@ def get_state_at(
     }
     cp = checkpointer.get(config)
     if cp:
-        return cp.checkpoint
+        return cp.get("channel_values", {})
     return None
 
 
