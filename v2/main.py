@@ -83,7 +83,7 @@ def main():
         sys.argv = [sys.argv[0]] + args
         classify_main()
     elif command == "review-labels" and args:
-        from v2.stage3_classification.review.cli import main as review_main
+        from v2.stage3b_classification_review.cli import main as review_main
         sys.argv = [sys.argv[0]] + args
         review_main()
     else:

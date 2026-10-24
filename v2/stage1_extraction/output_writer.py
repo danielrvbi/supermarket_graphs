@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, Literal, Optional
 from datetime import datetime
 
+from v2.common.non_products import is_non_product_item
 from v2.common.settings import settings
 from v2.stage1_extraction.store import ProcessedDataStore
 
@@ -162,16 +163,32 @@ class OutputWriter:
 
         # 3. Insert to SQLite database (only clean receipts)
         if status == "clean":
+            # Keep all items in JSON output, but exclude known non-product
+            # receipt lines (deposits, savings stamps, cashback, etc.) from
+            # the product database.
+            all_items = receipt_data.get("items", [])
+            db_items = [
+                item for item in all_items
+                if not is_non_product_item(item.get("item_name"))
+            ]
+            skipped = len(all_items) - len(db_items)
+            if skipped:
+                skipped_names = [
+                    item.get("item_name") for item in all_items
+                    if is_non_product_item(item.get("item_name"))
+                ]
+                print(f"  [FILTERED] {skipped} non-product line(s) excluded from DB: {skipped_names}")
+
             self.db_writer.insert_receipt(
                 receipt_id=receipt_id,
                 receipt_path=receipt_path,
                 receipt_json_path=str(json_path),
                 store=store,
                 date_of_purchase=receipt_data.get("date_of_purchase"),
-                items=receipt_data.get("items", []),
+                items=db_items,
                 confidence=metadata.get("confidence", 0.0) if metadata else 0.0,
             )
-            print(f"  [DATABASE] {len(receipt_data.get('items', []))} items → processed_data.db")
+            print(f"  [DATABASE] {len(db_items)} items → processed_data.db")
 
     def get_stats(self) -> dict:
         """Get statistics about processed receipts."""

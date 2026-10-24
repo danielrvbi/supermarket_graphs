@@ -20,6 +20,7 @@ from v2.stage2_normalization.rules.arithmetic_fixer import (
     fix_arithmetic,
     recalc_price_per_unit,
 )
+from v2.common.non_products import NON_PRODUCT_FILTER_REASON
 from v2.stage2_normalization.rules.item_cleaner import (
     apply_edge_cases,
     should_filter_item,
@@ -247,8 +248,8 @@ class Normalizer:
         # ============================================================
         if should_filter_item(item_name):
             result.filtered_out = True
-            result.filter_reason = "contains_STATI"
-            rules.append("filter_stati")
+            result.filter_reason = NON_PRODUCT_FILTER_REASON
+            rules.append("filter_non_product")
             self.stats["filtered_out"] += 1
             # Still return the item but mark as filtered
             # The caller will decide whether to insert it

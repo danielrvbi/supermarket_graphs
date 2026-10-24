@@ -261,10 +261,21 @@ def test_apply_edge_cases_excluded_items():
 
 
 def test_should_filter_item():
-    """Test item filtering (STATI/deposit items)."""
+    """Test item filtering (non-product receipt lines)."""
+    # Non-products that must be filtered
     assert should_filter_item("STATIEGELD FLES") == True
     assert should_filter_item("STATI 0.25") == True
+    assert should_filter_item("STATIEGELD") == True
+    assert should_filter_item("KOOPZEGELS") == True
+    assert should_filter_item("KOOPZEGEL") == True
+    assert should_filter_item("CASHBACK") == True
+    assert should_filter_item("KORTING") == True
+    assert should_filter_item("BEDRAG") == True
+    # Real products that must NOT be filtered
     assert should_filter_item("COLA ZERO") == False
+    assert should_filter_item("AH BIO KIPFI") == False
+    assert should_filter_item("KORTIJKE BROODJES") == False  # Contains "KORT" but not "KORTING"
+    assert should_filter_item("BEDDENGOED SET") == False    # Contains "BED" but not "BEDRAG"
     assert should_filter_item("") == False
     print("✓ test_should_filter_item passed")
 
@@ -386,8 +397,8 @@ def test_normalizer_filtered_item():
     result = normalize_item(raw_item)
 
     assert result.filtered_out == True
-    assert result.filter_reason == "contains_STATI"
-    assert "filter_stati" in result.normalization_rules
+    assert result.filter_reason == "non_product_receipt_line"
+    assert "filter_non_product" in result.normalization_rules
     print("✓ test_normalizer_filtered_item passed")
 
 

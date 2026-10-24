@@ -13,6 +13,8 @@ Handles:
 import re
 from typing import Dict, List, Optional, Tuple
 
+from v2.common.non_products import is_non_product_item
+
 
 # Items that should NOT have pack/bundle cleaning applied
 # (they contain numbers but are product names, not quantities)
@@ -170,9 +172,11 @@ def clean_item_name(item_name: str) -> str:
 
 def should_filter_item(item_name: str) -> bool:
     """
-    Check if an item should be filtered out (e.g., deposit items).
+    Check if an item should be filtered out because it is not a product.
 
-    Ported from V1: .loc[lambda df: ~df["item_name"].str.contains("STATI")]
+    Catches deposits (STATIEGELD/STATI), savings stamps (KOOPZEGELS),
+    cashback/discount/payment lines (CASHBACK, KORTING, BEDRAG), and common
+    variants such as "STATIEGELD FLES 0.25L".
 
     Args:
         item_name: Item name to check
@@ -180,6 +184,4 @@ def should_filter_item(item_name: str) -> bool:
     Returns:
         True if item should be filtered out
     """
-    if not item_name:
-        return False
-    return "STATI" in str(item_name).upper()
+    return is_non_product_item(item_name)
