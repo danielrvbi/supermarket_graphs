@@ -11,6 +11,7 @@ from typing import Dict, List
 
 import pandas as pd
 
+from v2.common.non_products import is_non_product_item
 from v2.stage3_classification.store import ClassificationStore
 from v2.stage3_classification.taxonomy import canonicalize
 
@@ -41,6 +42,10 @@ def load_old_labels(csv_path: str) -> List[Dict]:
     labels = []
     unmapped = set()
     for row in df.itertuples():
+        # Skip non-product receipt lines (deposits, savings stamps, cashback,
+        # discounts, payment metadata) — they must never become product labels.
+        if is_non_product_item(row.item_name):
+            continue
         mapped = canonicalize(row.Category, row.Subcategory)
         if mapped is None:
             unmapped.add((row.Category, row.Subcategory))

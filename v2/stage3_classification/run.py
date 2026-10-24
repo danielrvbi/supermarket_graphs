@@ -25,6 +25,7 @@ from datetime import datetime
 from tqdm import tqdm
 
 from v2.common.cost_report import CostReport
+from v2.common.non_products import is_non_product_item
 from v2.common.settings import settings
 from v2.stage3_classification.matcher import Embedder, Matcher, passes_gate
 from v2.stage3_classification.search import ProductSearch
@@ -88,6 +89,9 @@ def main():
     # Tier 0: exact match
     store_filter = args.store if args.store in ("ah", "jumbo") else None
     items = db.get_unique_items(store=store_filter)
+    # Never classify non-product receipt lines (deposits, savings stamps,
+    # cashback, discounts, payment metadata).
+    items = [i for i in items if not is_non_product_item(i["item_name"])]
     known = db.labelled_names() | {l["item_name"] for l in old_labels}
     new_items = [i for i in items if i["item_name"] not in known]
 

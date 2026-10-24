@@ -237,6 +237,41 @@ def test_seed_never_overwrites_manual(tmp_path, db):
     assert db.get_label("AH YOGHURT")["source"] == "old_data"
 
 
+NON_PRODUCT_CSV = """Month,Week,Date,Product,Producto,Category,Subcategory,Unit Price RAW,# Units RAW,Total Price RAW, Unit Price ,# Units, Total Price , RANK ,MRKT
+2024-01-01,2024-W01,2024-01-02,AH YOGHURT,Yogur AH,Lácteos,Yogurt,€1,1,€1, € 1 ,1, € 1 ,,Albert Heijn
+2024-01-01,2024-W01,2024-01-02,KOOPZEGELS,Cupones AH,Hogar,Otros,€0,1,€0, € 0 ,1, € 0 ,,Albert Heijn
+2024-01-01,2024-W01,2024-01-02,STATIEGELD,Deposit,Hogar,Otros,€0,1,€0, € 0 ,1, € 0 ,,Albert Heijn
+2024-01-01,2024-W01,2024-01-02,CASHBACK,Cashback,Hogar,Otros,€0,1,€0, € 0 ,1, € 0 ,,Albert Heijn
+2024-01-01,2024-W01,2024-01-02,KORTING,Discount,Hogar,Otros,€0,1,€0, € 0 ,1, € 0 ,,Albert Heijn
+2024-01-01,2024-W01,2024-01-02,BEDRAG,Amount,Hogar,Otros,€0,1,€0, € 0 ,1, € 0 ,,Albert Heijn
+2024-01-01,2024-W01,2024-01-02,KORTIJKE BROODJES,Broodjes AH,Panadería,Pan,€2,1,€2, € 2 ,1, € 2 ,,Albert Heijn
+"""
+
+
+def test_seed_skips_non_product_lines(tmp_path, db):
+    """Non-product receipt lines must never be seeded as product labels."""
+    csv = tmp_path / "old_with_nonproducts.csv"
+    csv.write_text(NON_PRODUCT_CSV, encoding="utf-8")
+
+    labels = {l["item_name"]: l for l in load_old_labels(str(csv))}
+
+    # Only real products should be loaded
+    assert set(labels) == {"AH YOGHURT", "KORTIJKE BROODJES"}
+    # Non-products must not appear
+    for non_product in ["KOOPZEGELS", "STATIEGELD", "CASHBACK", "KORTING", "BEDRAG"]:
+        assert non_product not in labels
+
+    # Seeding should also skip them
+    assert seed_labels(db, str(csv)) == 2
+    assert db.get_label("KOOPZEGELS") is None
+    assert db.get_label("STATIEGELD") is None
+    assert db.get_label("CASHBACK") is None
+    assert db.get_label("KORTING") is None
+    assert db.get_label("BEDRAG") is None
+    assert db.get_label("AH YOGHURT") is not None
+    assert db.get_label("KORTIJKE BROODJES") is not None
+
+
 def test_rebuild_classified_joins_labels(db):
     from v2.stage2_normalization.store import NormalizedDataStore
 
