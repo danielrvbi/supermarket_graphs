@@ -4,7 +4,7 @@ Loads from environment variables / .env file.
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 
 class Settings(BaseSettings):
@@ -16,6 +16,18 @@ class Settings(BaseSettings):
         default="mistral-small-latest",
         description="Mistral model to use"
     )
+
+    # Tavily (stage 3 product search). Accepts TAVILY_API_KEY or TAVILY_KEY.
+    TAVILY_KEY: str = Field(
+        default="",
+        validation_alias=AliasChoices("TAVILY_API_KEY", "TAVILY_KEY"),
+        description="Tavily API key",
+    )
+
+    # Stage 3 classification
+    EMBED_MODEL: str = Field(default="mistral-embed", description="Mistral embedding model")
+    OLD_DATA_CSV: str = Field(default="old_data.csv", description="Hand-labelled products (seed labels)")
+    MATCH_GATE_SCORE: float = Field(default=0.80, description="Min neighbour similarity to skip web search")
 
     # Paths
     BASE_DIR: str = Field(default=".", description="Project base directory")

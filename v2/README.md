@@ -16,7 +16,7 @@ in `processed/processed_data.db`.
 |-------|--------|-------|--------|-----|
 | 1. Extraction | `stage1_extraction/` | `raw_receipts/` | `processed_data` | `python -m v2.main extract-all` |
 | 2. Normalization | `stage2_normalization/` | `processed_data` | `normalized_data` | `python -m v2.main normalize` |
-| 3. Classification | `stage3_classification/` | `normalized_data` | `classified_data` | *(planned)* |
+| 3. Classification | `stage3_classification/` | `normalized_data` + `old_data.csv` | `item_labels`, `classified_data` | `python -m v2.main classify` |
 
 Rule: a stage imports from `common/` and may read the previous stage's `store.py`, never a later stage.
 
@@ -411,7 +411,7 @@ v2/
 │   │   ├── arithmetic_fixer.py  # Fix qty × price ≠ total
 │   │   └── name_standardizer.py # Name cleanup
 │   └── tests/               # Deterministic unit tests (pytest)
-├── stage3_classification/   # Stage 3: normalized_data → classified_data (planned)
+├── stage3_classification/   # Stage 3: normalized_data → classified_data (see its README)
 └── checkpoints/             # LangGraph SQLite databases (gitignored)
 ```
 

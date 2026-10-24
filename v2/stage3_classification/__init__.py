@@ -1,5 +1,6 @@
 """
-Stage 3 - Classification (not implemented yet).
+Stage 3 - Classification.
 
-`normalized_data` table -> `classified_data` table.
+`normalized_data` table -> `item_labels` (product dictionary) + `classified_data` table.
+old_data.csv exact match -> Mistral embedding neighbours -> Tavily search (cached) -> Mistral label.
 """

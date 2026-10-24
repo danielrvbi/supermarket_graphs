@@ -17,6 +17,14 @@ Stage 2 - normalization (processed_data -> normalized_data):
     python -m v2.main normalize --rebuild     # Clear and rebuild normalized table
     python -m v2.main normalize --dry-run     # Preview normalization changes
 
+Stage 3 - classification (normalized_data -> classified_data):
+    python -m v2.main classify                # Classify new items (old_data -> embeddings -> Tavily -> LLM)
+    python -m v2.main classify --dry-run      # Preview tiers without Tavily/LLM calls
+    python -m v2.main classify --limit 20     # Classify first 20 new items
+    python -m v2.main classify --no-search    # Skip Tavily
+    python -m v2.main review-labels list      # Items flagged for review
+    python -m v2.main review-labels set <item> <category> <subcategory>
+
 Aliases: ah, jumbo, ah-batch, jumbo-batch (same as extract / extract-batch).
 """
 
@@ -70,6 +78,14 @@ def main():
         from v2.stage2_normalization.run import main as normalize_main
         sys.argv = [sys.argv[0]] + args
         normalize_main()
+    elif command == "classify":
+        from v2.stage3_classification.run import main as classify_main
+        sys.argv = [sys.argv[0]] + args
+        classify_main()
+    elif command == "review-labels" and args:
+        from v2.stage3_classification.review.cli import main as review_main
+        sys.argv = [sys.argv[0]] + args
+        review_main()
     else:
         print(__doc__)
         sys.exit(1)
