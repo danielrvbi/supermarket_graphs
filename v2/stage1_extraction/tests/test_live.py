@@ -14,6 +14,7 @@ Usage:
 
 import sys
 import json
+import tempfile
 from pathlib import Path
 from datetime import datetime
 
@@ -54,6 +55,7 @@ JUMBO_TEST_FILES = _test_files.get("jumbo", [])
 
 def test_ah_receipt(pipeline, test_file: dict) -> dict:
     """Run a single AH test receipt through the pipeline."""
+    isolate_live_tests()
     print(f"\n{'='*70}")
     print(f"Testing: {test_file['id']} ({test_file['period']})")
     print(f"File: {test_file['path']}")
@@ -133,6 +135,7 @@ def test_ah_receipt(pipeline, test_file: dict) -> dict:
 
 def test_jumbo_receipt(pipeline, test_file: dict) -> dict:
     """Run a single Jumbo test receipt through the pipeline."""
+    isolate_live_tests()
     print(f"\n{'='*70}")
     print(f"Testing: {test_file['id']} ({test_file['period']})")
     print(f"File: {test_file['path']}")
@@ -218,8 +221,24 @@ def test_jumbo_receipt(pipeline, test_file: dict) -> dict:
 # Main test runners
 # ============================================================
 
+_LIVE_TEST_ROOT = None
+
+
+def isolate_live_tests():
+    """Keep live integration runs out of the real purchase database."""
+    global _LIVE_TEST_ROOT
+    if _LIVE_TEST_ROOT is None:
+        _LIVE_TEST_ROOT = Path(tempfile.mkdtemp(prefix="supermkt-live-tests-"))
+        settings.PROCESSED_DIR = str(_LIVE_TEST_ROOT / "processed")
+        settings.PROCESSED_DB = str(_LIVE_TEST_ROOT / "processed" / "processed_data.db")
+        settings.CHECKPOINTS_DIR = str(_LIVE_TEST_ROOT / "checkpoints")
+        settings.TOKEN_USAGE_DB = str(_LIVE_TEST_ROOT / "checkpoints" / "token_usage.db")
+        print(f"Isolated live-test outputs: {_LIVE_TEST_ROOT}")
+
+
 def run_ah_tests():
     """Run all 4 AH test receipts."""
+    isolate_live_tests()
     print("\n" + "#" * 70)
     print("# AH PIPELINE LIVE TEST")
     print("# Testing 4 receipts: earliest, early, middle, latest")
@@ -242,6 +261,7 @@ def run_ah_tests():
 
 def run_jumbo_tests():
     """Run all 4 Jumbo test receipts."""
+    isolate_live_tests()
     print("\n" + "#" * 70)
     print("# JUMBO PIPELINE LIVE TEST")
     print("# Testing 4 receipts: earliest, early, middle, latest")
