@@ -20,7 +20,9 @@ class SQLiteStore:
 
     def _connect(self) -> sqlite3.Connection:
         """Get database connection."""
-        return sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("PRAGMA foreign_keys=ON")
+        return conn
 
     def _ensure_schema(self):
         """Create database and table if not exists."""

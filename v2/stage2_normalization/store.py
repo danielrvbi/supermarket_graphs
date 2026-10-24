@@ -95,12 +95,17 @@ class NormalizedDataStore(SQLiteStore):
         try:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO normalized_data
+                INSERT INTO normalized_data
                 (source_id, receipt_id, store, date_of_purchase, month_of_purchase,
                  item_name, measurement_type, measurement_quantity,
                  price_per_measurement_unit, line_total_paid_amount,
                  normalization_rules, normalized_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(receipt_id,item_name,measurement_quantity,line_total_paid_amount)
+                DO UPDATE SET source_id=excluded.source_id, store=excluded.store,
+                    date_of_purchase=excluded.date_of_purchase, month_of_purchase=excluded.month_of_purchase,
+                    measurement_type=excluded.measurement_type, price_per_measurement_unit=excluded.price_per_measurement_unit,
+                    normalization_rules=excluded.normalization_rules, normalized_at=excluded.normalized_at
                 """,
                 (
                     source_id,
@@ -125,6 +130,9 @@ class NormalizedDataStore(SQLiteStore):
         """Delete all rows from normalized_data table."""
         conn = self._connect()
         try:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='classified_data'").fetchone():
+                if conn.execute("SELECT 1 FROM classified_data LIMIT 1").fetchone():
+                    raise ValueError("Classified output exists; use a coordinated rebuild instead of clearing normalized rows")
             conn.execute("DELETE FROM normalized_data")
             conn.commit()
         finally:

@@ -94,15 +94,36 @@ class ProcessedDataStore(SQLiteStore):
         try:
             processed_at = datetime.now().isoformat()
 
+            conn.execute("BEGIN IMMEDIATE")
+            has_normalized = conn.execute("SELECT 1 FROM sqlite_master WHERE name='normalized_data'").fetchone()
+            for row in conn.execute("SELECT id,item_index,item_name,measurement_type,measurement_quantity,"
+                                    "price_per_measurement_unit,line_total_paid_amount,date_of_purchase,store "
+                                    "FROM processed_data WHERE receipt_id=?", (receipt_id,)).fetchall():
+                if has_normalized and conn.execute("SELECT 1 FROM normalized_data WHERE source_id=?", (row[0],)).fetchone():
+                    incoming = items[row[1]] if row[1] < len(items) else None
+                    values = None if incoming is None else tuple(incoming.get(k) for k in (
+                        "item_name", "measurement_type", "measurement_quantity",
+                        "price_per_measurement_unit", "line_total_paid_amount",
+                    )) + (date_of_purchase, store)
+                    if values != row[2:]:
+                        raise ValueError("Referenced receipt item changed or removed; coordinated downstream refresh required")
+
             for idx, item in enumerate(items):
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO processed_data
+                    INSERT INTO processed_data
                     (receipt_id, receipt_path, receipt_json_path, store,
                      date_of_purchase, processed_at, item_index, item_name,
                      measurement_type, measurement_quantity,
                      price_per_measurement_unit, line_total_paid_amount, confidence)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(receipt_id,item_index) DO UPDATE SET
+                        receipt_path=excluded.receipt_path, receipt_json_path=excluded.receipt_json_path,
+                        store=excluded.store, date_of_purchase=excluded.date_of_purchase,
+                        processed_at=excluded.processed_at, item_name=excluded.item_name,
+                        measurement_type=excluded.measurement_type, measurement_quantity=excluded.measurement_quantity,
+                        price_per_measurement_unit=excluded.price_per_measurement_unit,
+                        line_total_paid_amount=excluded.line_total_paid_amount, confidence=excluded.confidence
                     """,
                     (
                         receipt_id,
@@ -120,6 +141,7 @@ class ProcessedDataStore(SQLiteStore):
                         confidence,
                     ),
                 )
+            conn.execute("DELETE FROM processed_data WHERE receipt_id=? AND item_index>=?", (receipt_id, len(items)))
             conn.commit()
         finally:
             conn.close()
