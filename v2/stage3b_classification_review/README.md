@@ -1,5 +1,38 @@
 # Stage 3B: Classification Review
 
+## Approved audit batches
+
+`apply_reviews.py` previews a version-1 JSON manifest using a read-only SQLite
+connection. It does not construct the writable store or initialize schema.
+
+```bash
+python -m v2.stage3b_classification_review.apply_reviews --db processed/processed_data.db --manifest path/to/review-manifest.json
+```
+
+A manifest contains explicit item keys, expected-before records, target labels,
+optional name replacements, and approval references. Entries marked
+`pending_final_preview` and unresolved conditions can be previewed but block
+application. Obtain approval for the exact preview, including names, related
+records, and manual-override metadata, before applying.
+
+Historical draft previews are not evidence of current database state or an
+instruction to reapply old decisions. Consult the approved manifest, application
+receipt, and database review history for the completed application.
+
+Application additionally requires `--apply`, `--approved-sha256` matching the
+final manifest checksum, and `--backup` pointing to a new backup file. Stop other
+writers first. The tool backs up SQLite, checks expected-before records, records
+before/after history, and updates affected classified rows in one transaction.
+It preserves classified IDs and purchase fields. Reapplying an unchanged,
+already-applied manifest is a no-op; changed labels cause a conflict.
+
+Full history is stored in `classification_review_runs` and
+`classification_review_changes`, created only during an authorized application.
+These history tables and manual-label metadata are database changes, even for
+category-retention decisions. Automated post-commit reversal is not implemented;
+before-images and a verified backup are retained for a separately authorized
+recovery. Never restore a backup over intervening work without review.
+
 Tools for reviewing, auditing, and validating product classifications from Stage 3.
 
 ## Overview
