@@ -368,7 +368,7 @@ def validate_label_string(label: str) -> Tuple[bool, str, Optional[str]]:
 
 def list_taxonomy():
     """Print the full taxonomy."""
-    print("FROZEN TAXONOMY (127 valid pairs)\n")
+    print(f"TAXONOMY ({len(all_labels())} valid pairs)\n")
     for category, subcategories in TAXONOMY.items():
         print(f"{category} ({len(subcategories)}):")
         for sub in subcategories:
@@ -468,7 +468,7 @@ def main():
         return 1
     
     # Interactive mode
-    print("Label Validator - Frozen Taxonomy (127 valid pairs)")
+    print(f"Label Validator - Taxonomy ({len(all_labels())} valid pairs)")
     print("Type 'list' to see all valid labels, 'quit' to exit\n")
     
     while True:

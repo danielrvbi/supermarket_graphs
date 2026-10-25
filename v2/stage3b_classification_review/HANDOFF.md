@@ -41,6 +41,10 @@ complex exports. Just SQL queries and a markdown table of findings.
 **CRITICAL RULE:** The taxonomy is **FROZEN**. You may ONLY suggest categories and
 sub-categories from the list below. **NEVER invent new sub-categories.**
 
+(This audit covers the v1 labels in `item_labels`. The redesigned v2 taxonomy lives in
+separate tables managed by `python -m v2.stage3c_taxonomy.cli`; see
+`v2/stage3c_taxonomy/README.md`.)
+
 If an item seems like it needs a sub-category that doesn't exist, use `Otros`
 for that category, or mark it as `NEEDS TAXONOMY UPDATE` in your output.
 
