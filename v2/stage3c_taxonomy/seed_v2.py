@@ -19,7 +19,7 @@ V2_TAXONOMY: Dict[str, List[str]] = {
         "Vino y Cócteles", "Otros",
     ],
     "Carnes y Pescado": [
-        "Carne Molida", "Cerdo", "Embutidos", "Hamburguesas y Albóndigas", "Jamón",
+        "Carne Molida", "Cerdo", "Embutidos y Fiambres", "Hamburguesas y Albóndigas", "Jamón",
         "Pescado y Mariscos", "Pollo", "Res", "Otros",
     ],
     "Frutas": [
@@ -86,7 +86,7 @@ V1_MAP: Dict[Tuple[str, str], Target] = {
     ("Carnes", "Atún"): "Carnes y Pescado > Pescado y Mariscos",
     ("Carnes", "Carne Molida"): "Carnes y Pescado > Carne Molida",
     ("Carnes", "Cerdo"): "Carnes y Pescado > Cerdo",
-    ("Carnes", "Embutidos"): "Carnes y Pescado > Embutidos",
+    ("Carnes", "Embutidos"): "Carnes y Pescado > Embutidos y Fiambres",
     ("Carnes", "Jamón"): "Carnes y Pescado > Jamón",
     ("Carnes", "Pescado"): "Carnes y Pescado > Pescado y Mariscos",
     ("Carnes", "Pollo"): [
@@ -295,4 +295,24 @@ V2_OVERRIDES: Dict[str, str] = {
     "KAISER WIT": "Panadería > Panecillos",
     "RIETSUIKER": "Despensa > Harina y Repostería",
     "OETK VANILLE": "Despensa > Harina y Repostería",
+    # review of all split_llm labels on the real db (2026-10-25)
+    "AH RUNDERBUR": "Carnes y Pescado > Hamburguesas y Albóndigas",
+    "RUND TARTAAR": "Carnes y Pescado > Carne Molida",
+    "TARTAAR NAT.": "Carnes y Pescado > Carne Molida",
+    "AH GRF ROSBI": "Carnes y Pescado > Embutidos y Fiambres",
+    "JUMBO ROSBIEF A MINU": "Carnes y Pescado > Embutidos y Fiambres",
+    "SANMAR MIX FAJITA": "Despensa > Caldos y Sazonadores",
+    "JUMBO WIT KAAS 2X50G": "Lácteos y Huevos > Queso Italiano y Feta",
+    "AH WIT KAAS": "Lácteos y Huevos > Queso Italiano y Feta",
+    "JUMBO WITTE KAAS": "Lácteos y Huevos > Queso Italiano y Feta",
+    "JUMBO WITTE KAAS PI": "Lácteos y Huevos > Queso Italiano y Feta",
+    "JUMBO GRANA PADAN ST": "Lácteos y Huevos > Queso Italiano y Feta",
+    "KAASBOLLETJE": "Panadería > Panecillos",
+    "STOKBROOD": "Panadería > Baguette",
+    "WALDK STOKBR": "Panadería > Baguette",
+    "KAISERBR VOLKOREN": "Panadería > Panecillos",
+    "WITTE BOL": "Panadería > Panecillos",
+    "AH BOTERHAMZ": "Hogar > Desechables de Cocina",
+    "AH BLEEK": "Limpieza y Lavandería > Limpiadores",
+    "BFYF HONDPOEPZAK 4R": "Hogar > Mascotas",
 }
