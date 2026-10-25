@@ -3,20 +3,23 @@ Mistral LLM client wrapper using LangChain.
 """
 
 from functools import lru_cache
+from typing import Optional
+
 from langchain_mistralai import ChatMistralAI
 from v2.common.settings import settings
 
 
-@lru_cache(maxsize=1)
-def get_mistral_llm(temperature: float = 0.0) -> ChatMistralAI:
+@lru_cache(maxsize=4)
+def get_mistral_llm(temperature: float = 0.0, model: Optional[str] = None) -> ChatMistralAI:
     """
     Get a configured Mistral LLM instance.
 
-    Uses mistral-small-latest by default for cost efficiency.
-    Cached to reuse the same instance.
+    Uses settings.MISTRAL_MODEL (mistral-small-latest) by default for cost efficiency.
+    Cached to reuse the same instance per (temperature, model).
 
     Args:
         temperature: Sampling temperature (0 for deterministic)
+        model: Mistral model name; None = settings.MISTRAL_MODEL
 
     Returns:
         Configured ChatMistralAI instance
@@ -28,7 +31,7 @@ def get_mistral_llm(temperature: float = 0.0) -> ChatMistralAI:
         )
 
     return ChatMistralAI(
-        model=settings.MISTRAL_MODEL,
+        model=model or settings.MISTRAL_MODEL,
         temperature=temperature,
         api_key=settings.MISTRAL_KEY,
         max_retries=3,

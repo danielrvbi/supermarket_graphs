@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     OLD_DATA_CSV: str = Field(default="old_data.csv", description="Hand-labelled products (seed labels)")
     MATCH_GATE_SCORE: float = Field(default=0.80, description="Min neighbour similarity to skip web search")
 
+    # Stage 3D ingredients
+    INGREDIENT_MODEL: str = Field(default="mistral-large-latest", description="Mistral model for ingredient naming")
+
     # Paths
     BASE_DIR: str = Field(default=".", description="Project base directory")
     RAW_RECEIPTS_DIR: str = Field(default="raw_receipts", description="Raw receipts directory")

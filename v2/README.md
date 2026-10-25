@@ -17,6 +17,7 @@ in `processed/processed_data.db`.
 | 1. Extraction | `stage1_extraction/` | `raw_receipts/` | `processed_data` | `python -m v2.main extract-all` |
 | 2. Normalization | `stage2_normalization/` | `processed_data` | `normalized_data` | `python -m v2.main normalize` |
 | 3. Classification | `stage3_classification/` | `normalized_data` + `old_data.csv` | `item_labels`, `classified_data` | `python -m v2.main classify` |
+| 3D. Ingredients | `stage3d_ingredients/` | `item_labels` + v2 taxonomy (3C) | `ingredient`, `product_ingredient` | `python -m v2.main ingredients assign ...` |
 
 Rule: a stage imports from `common/` and may read the previous stage's `store.py`, never a later stage.
 

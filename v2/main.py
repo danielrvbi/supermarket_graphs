@@ -25,6 +25,11 @@ Stage 3 - classification (normalized_data -> classified_data):
     python -m v2.main review-labels list      # Items flagged for review
     python -m v2.main review-labels set <item> <category> <subcategory>
 
+Stage 3D - ingredients (item_labels + v2 taxonomy -> product_ingredient):
+    python -m v2.main ingredients assign --dry-run --no-llm   # Batches + cost estimate, no API calls
+    python -m v2.main ingredients assign --subcategory "Verduras > Lechuga y Ensaladas"
+    python -m v2.main ingredients status
+
 Aliases: ah, jumbo, ah-batch, jumbo-batch (same as extract / extract-batch).
 """
 
@@ -86,6 +91,10 @@ def main():
         from v2.stage3b_classification_review.cli import main as review_main
         sys.argv = [sys.argv[0]] + args
         review_main()
+    elif command == "ingredients" and args:
+        from v2.stage3d_ingredients.cli import main as ingredients_main
+        sys.argv = [sys.argv[0]] + args
+        ingredients_main()
     else:
         print(__doc__)
         sys.exit(1)
