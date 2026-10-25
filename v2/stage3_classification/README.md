@@ -38,11 +38,29 @@ python -m v2.main classify --dry-run     # tier counts + how many Tavily/LLM cal
 python -m v2.main classify --limit 20    # try on 20 new items
 python -m v2.main classify               # classify everything new
 python -m v2.main classify --no-search   # never call Tavily (weak matches get flagged)
-python -m v2.main classify --rebuild     # redo LLM labels (keeps old_data/manual labels, reuses caches)
-python -m v2.main classify --retry-failed-search
+python -m v2.main classify --rebuild     # replace LLM labels after successful reclassification
+python -m v2.main classify --rebuild --store ah --limit 20
+python -m v2.main classify --retry-failed-search  # also retry already LLM-labelled products
 ```
 
 Requires `MISTRAL_KEY` and `TAVILY_API_KEY` (or `TAVILY_KEY`) in `.env`.
+
+Rebuild and retry selection respects `--store`, deduplicates product names, then applies
+the positive `--limit`. Labels are shared by name across stores, so a selected replacement
+updates that name's purchases in both stores. Other names keep their labels, and failed
+replacement calls retain the previous label. `old_data` and `manual` labels are protected.
+
+`--retry-failed-search` refreshes failed or empty cached searches even for already-labelled
+products and even when their embedding gate now passes. For names appearing in both stores,
+an eligible failed-search store/name pair is preferred. If the search still fails, the old
+label stays in place; rerun the command to retry again. If search succeeds but classification
+fails, use `--rebuild` to retry classification with the successful cached search.
+Successful search caches are reused.
+This flag cannot be combined with `--no-search`.
+
+Dry runs use the same selection and show search/classification call estimates without
+writing labels or calling Tavily/the classification LLM. Embedding requests and their
+cache writes may still occur, as in ordinary classification previews.
 
 ### Review
 

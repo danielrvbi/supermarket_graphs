@@ -6,8 +6,8 @@ For each product in item_labels, its v1 (category, subcategory) is looked up in 
 - several      -> split: the LLM picks one of only those candidates (source=split_llm);
                   with no_llm the product is stored with no subcategory (source=pending_split)
 
-Skipped: manual v2 labels, and labels whose synced_from still equals the product's
-current v1 label (so re-running only touches new products and changed v1 labels).
+Skipped: manual v2 labels and automatic labels whose versioned inputs are unchanged.
+Review-only changes preserve assignments and explicit approvals without LLM calls.
 item_labels and classified_data are only read.
 """
 
@@ -18,6 +18,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, Protocol, Tuple
 
 from v2.stage3c_taxonomy.store import LABEL_SEP, TaxonomyStore
+from v2.stage3c_taxonomy.review_state import (
+    assignment_evidence, evidence_dict, is_approved, same_identity, sync_inputs,
+)
 
 
 BATCH_SIZE = 25
@@ -86,7 +89,11 @@ def sync(
         if current and current["source"] == "manual":
             report.skipped_manual += 1
             continue
-        if current and current["synced_from"] == v1_label and current["source"] != "pending_split":
+        inputs = sync_inputs(product)
+        evidence = evidence_dict(current["evidence"]) if current else {}
+        review_only = bool(current and current["source"] != "pending_split"
+                           and same_identity(evidence.get("sync_inputs"), inputs))
+        if review_only and evidence["sync_inputs"] == inputs:
             report.skipped_current += 1
             continue
         targets = mapping.get((product["category"], product["subcategory"]))
@@ -97,15 +104,25 @@ def sync(
             break
         todo += 1
 
+        if review_only:
+            reasons = set(evidence.get("review_reasons", [])) - {"upstream"}
+            if product["needs_review"]:
+                reasons.add("upstream")
+            evidence.update(sync_inputs=inputs, review_reasons=sorted(reasons))
+            to_write.append({**current, "evidence": evidence,
+                             "needs_review": bool(reasons) and not is_approved(evidence, inputs, current["subcategory_id"])})
+            continue
+
         if len(targets) == 1:
             report.mapped += 1
+            evidence = {"v1": v1_label, **assignment_evidence(product, current)}
             to_write.append({
                 "item_name": product["item_name"],
                 "subcategory_id": targets[0][0],
                 "source": "map",
                 "confidence": 1.0,
-                "needs_review": product["needs_review"],
-                "evidence": {"v1": v1_label},
+                "needs_review": bool(evidence["review_reasons"]),
+                "evidence": evidence,
                 "synced_from": v1_label,
             })
         else:
@@ -128,9 +145,11 @@ def sync(
         to_write = []
 
         for product in products:
-            evidence = {"v1": v1_label, "candidates": candidates}
+            evidence = {"v1": v1_label, "candidates": candidates,
+                        **assignment_evidence(product, existing.get(product["item_name"]))}
             pick = picks.get(product["item_name"])
             if pick is None:
+                evidence["review_reasons"].append("pending_split")
                 report.pending_split += 1
                 to_write.append({
                     "item_name": product["item_name"], "subcategory_id": None,
@@ -139,13 +158,15 @@ def sync(
                 })
                 continue
             label, confidence, reasoning = pick
+            if confidence != "high":
+                evidence["review_reasons"].append("confidence")
             report.split_llm += 1
             to_write.append({
                 "item_name": product["item_name"],
                 "subcategory_id": ids[label],
                 "source": "split_llm",
                 "confidence": CONFIDENCE_SCORES[confidence],
-                "needs_review": confidence != "high" or bool(product["needs_review"]),
+                "needs_review": bool(evidence["review_reasons"]),
                 "evidence": {**evidence, "reasoning": reasoning, "llm_confidence": confidence},
                 "synced_from": v1_label,
             })

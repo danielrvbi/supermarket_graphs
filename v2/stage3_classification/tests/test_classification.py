@@ -273,8 +273,10 @@ def test_seed_skips_non_product_lines(tmp_path, db):
 
 
 def test_rebuild_classified_joins_labels(db):
+    from v2.stage1_extraction.store import ProcessedDataStore
     from v2.stage2_normalization.store import NormalizedDataStore
 
+    ProcessedDataStore(db.db_path)
     norm = NormalizedDataStore(db.db_path)
     for name, total in [("AH EIEREN", 3.0), ("AH EIEREN", 3.5), ("MYSTERY", 1.0)]:
         norm.insert_normalized_item(

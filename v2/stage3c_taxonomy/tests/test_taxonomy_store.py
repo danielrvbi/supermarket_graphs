@@ -5,6 +5,7 @@ Usage:
     python -m pytest v2/stage3c_taxonomy/tests -v
 """
 
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -231,3 +232,159 @@ def test_overrides_are_valid_and_survive_sync(db):
     assert applied == ["MOSTERD"]
     sync(db, picker=FakePicker())
     assert v2_label(db, "MOSTERD") == ("Despensa", "Aderezos", "manual", 0)
+
+
+def update_v1(db, item_name, **values):
+    conn = sqlite3.connect(db.db_path)
+    try:
+        conn.execute("UPDATE item_labels SET " + ", ".join(f"{key}=?" for key in values) + " WHERE item_name=?",
+                     [*values.values(), item_name])
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_sync_reassigns_corrected_spanish_identity(db):
+    sync(db, picker=FakePicker())
+    assert db.approve("KIPFILET")
+    update_v1(db, "KIPFILET", producto_es="Carne Molida de Pollo", needs_review=1)
+    picker = FakePicker()
+    report = sync(db, picker=picker)
+    assert report.split_llm == 1 and picker.calls == 1
+    assert v2_label(db, "KIPFILET")[:2] == ("Carnes y Pescado", "Carne Molida")
+    row = db.get_product_labels()["KIPFILET"]
+    evidence = json.loads(row["evidence"])
+    assert "approval" not in evidence
+    assert evidence["sync_inputs"]["producto_es"] == "Carne Molida de Pollo"
+    assert row["needs_review"] == 1
+    assert sync(db, picker=FakePicker()).written == 0
+
+
+@pytest.mark.parametrize("field,value", [("category", "Bebidas"), ("store", "jumbo")])
+def test_other_identity_changes_invalidate_approval(db, field, value):
+    sync(db, picker=FakePicker())
+    db.approve("KIPFILET")
+    updates = {field: value}
+    if field == "category":
+        updates["subcategory"] = "Agua"
+    update_v1(db, "KIPFILET", **updates)
+    report = sync(db, picker=FakePicker())
+    assert report.written == 1
+    assert "approval" not in json.loads(db.get_product_labels()["KIPFILET"]["evidence"])
+
+
+@pytest.mark.parametrize("confidence", ["high", "low"])
+def test_review_only_sync_preserves_assignment_and_confidence_reason(db, confidence):
+    class Picker(FakePicker):
+        def pick(self, *args):
+            return {name: (label, confidence, reason) for name, (label, _, reason) in super().pick(*args).items()}
+
+    sync(db, picker=Picker())
+    original = db.get_product_labels()["KIPFILET"]
+    for flag in (1, 0):
+        update_v1(db, "KIPFILET", needs_review=flag)
+        picker = FakePicker()
+        report = sync(db, picker=picker)
+        current = db.get_product_labels()["KIPFILET"]
+        assert report.written == 1 and report.llm_calls == picker.calls == 0
+        assert current["subcategory_id"] == original["subcategory_id"]
+        assert current["confidence"] == original["confidence"]
+        assert current["needs_review"] == int(bool(flag) or confidence == "low")
+
+
+def test_explicit_approval_survives_upstream_review_changes(db):
+    sync(db, picker=FakePicker())
+    assert db.approve("MOSTERD")
+    assignment = db.get_product_labels()["MOSTERD"]["subcategory_id"]
+    for flag in (0, 1, 0):
+        update_v1(db, "MOSTERD", needs_review=flag)
+        picker = FakePicker()
+        report = sync(db, picker=picker)
+        row = db.get_product_labels()["MOSTERD"]
+        assert report.written == 1 and picker.calls == 0
+        assert row["subcategory_id"] == assignment and row["needs_review"] == 0
+        assert json.loads(row["evidence"])["approval"]["subcategory_id"] == assignment
+
+
+def test_taxonomy_split_invalidates_approval_and_keeps_review_reason(db):
+    sync(db, picker=FakePicker())
+    db.approve("CRUESLI")
+    db.split_subcategory("Despensa", "Cereales y Avena", ["Avena", "Granola"])
+    for flag in (1, 0):
+        update_v1(db, "CRUESLI", needs_review=flag)
+        sync(db, picker=FakePicker())
+        row = db.get_product_labels()["CRUESLI"]
+        evidence = json.loads(row["evidence"])
+        assert row["needs_review"] == 1
+        assert "taxonomy_split" in evidence["review_reasons"] and "approval" not in evidence
+    db.approve("CRUESLI")
+    assert sync(db, picker=FakePicker()).written == 0
+    assert v2_label(db, "CRUESLI")[3] == 0
+
+
+def test_low_confidence_approval_survives_review_flag_changes(db):
+    class LowConfidence(FakePicker):
+        def pick(self, *args):
+            return {name: (label, "low", reason) for name, (label, _, reason) in super().pick(*args).items()}
+
+    sync(db, picker=LowConfidence())
+    assert v2_label(db, "KIPFILET")[3] == 1
+    db.approve("KIPFILET")
+    update_v1(db, "KIPFILET", needs_review=1)
+    sync(db, picker=FakePicker())
+    row = db.get_product_labels()["KIPFILET"]
+    assert row["confidence"] == 0.4 and row["needs_review"] == 0
+    assert set(json.loads(row["evidence"])["review_reasons"]) == {"confidence", "upstream"}
+
+
+def test_manual_labels_protected_from_identity_and_review_changes(db):
+    sync(db, picker=FakePicker())
+    db.set_manual("KIPFILET", "Despensa", "Otros")
+    before = db.get_product_labels()["KIPFILET"]
+    update_v1(db, "KIPFILET", producto_es="Something else", needs_review=1)
+    sync(db, picker=FakePicker())
+    assert db.get_product_labels()["KIPFILET"] == before
+
+
+def test_legacy_automatic_label_refreshed_once(db):
+    sync(db, picker=FakePicker())
+    row = db.get_product_labels()["KIPGEHAKT"]
+    conn = sqlite3.connect(db.db_path)
+    try:
+        conn.execute("UPDATE product_category SET evidence=? WHERE item_name='KIPGEHAKT'",
+                     (json.dumps({"v1": row["synced_from"]}),))
+        conn.commit()
+    finally:
+        conn.close()
+    picker = FakePicker()
+    assert sync(db, picker=picker).written == 1 and picker.calls == 1
+    assert json.loads(db.get_product_labels()["KIPGEHAKT"]["evidence"])["sync_inputs"]["version"] == 1
+    assert sync(db, picker=FakePicker()).written == 0
+
+
+def test_new_approval_of_legacy_label_establishes_baseline(db):
+    sync(db, picker=FakePicker())
+    conn = sqlite3.connect(db.db_path)
+    try:
+        conn.execute("UPDATE product_category SET evidence=NULL WHERE item_name='KIPFILET'")
+        conn.commit()
+    finally:
+        conn.close()
+    assert db.approve("KIPFILET")
+    picker = FakePicker()
+    assert sync(db, picker=picker).written == 0 and picker.calls == 0
+
+
+def test_metadata_only_dry_run_does_not_write_or_call_picker(db):
+    sync(db, picker=FakePicker())
+    update_v1(db, "CRUESLI", needs_review=1)
+    before = Path(db.db_path).read_bytes()
+    picker = FakePicker()
+    assert sync(db, picker=picker, dry_run=True).written == 0
+    assert picker.calls == 0 and Path(db.db_path).read_bytes() == before
+
+
+def test_pending_labels_cannot_be_approved(db):
+    sync(db)
+    assert not db.approve("KIPFILET")
+    assert sync(db, picker=FakePicker()).split_llm == 3

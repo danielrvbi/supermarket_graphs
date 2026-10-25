@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Dict, Iterable, List, Optional, Tuple
 
 from v2.common.db import SQLiteStore
+from v2.stage3c_taxonomy.review_state import evidence_dict, identity, sync_inputs
 
 
 OTHER = "Otros"
@@ -309,12 +310,32 @@ class TaxonomyStore(SQLiteStore):
         return applied
 
     def approve(self, item_name: str) -> bool:
-        """Keep the v2 label, clear the review flag."""
+        """Approve this identity and assignment until either changes or a taxonomy split."""
         conn = self._connect()
+        conn.row_factory = sqlite3.Row
         try:
+            conn.execute("BEGIN IMMEDIATE")
+            current = conn.execute("SELECT * FROM product_category WHERE item_name=? AND subcategory_id IS NOT NULL",
+                                   (item_name,)).fetchone()
+            if current is None:
+                return False
+            evidence = evidence_dict(current["evidence"])
+            if current["source"] != "manual":
+                product = conn.execute("SELECT * FROM item_labels WHERE item_name=?", (item_name,)).fetchone()
+                if product is None:
+                    return False
+                inputs = sync_inputs(product)
+                evidence["sync_inputs"] = inputs
+                reasons = set(evidence.get("review_reasons", [])) - {"upstream"}
+                if product["needs_review"]:
+                    reasons.add("upstream")
+                if current["source"] == "split_llm" and (current["confidence"] or 0) < 0.9:
+                    reasons.add("confidence")
+                evidence["review_reasons"] = sorted(reasons)
+                evidence["approval"] = {"identity": identity(inputs), "subcategory_id": current["subcategory_id"]}
             changed = conn.execute(
-                "UPDATE product_category SET needs_review=0 WHERE item_name=? AND subcategory_id IS NOT NULL",
-                (item_name,),
+                "UPDATE product_category SET needs_review=0, evidence=?, updated_at=? WHERE item_name=?",
+                (json.dumps(evidence, ensure_ascii=False), datetime.now().isoformat(), item_name),
             ).rowcount
             conn.commit()
             return bool(changed)
@@ -457,10 +478,17 @@ class TaxonomyStore(SQLiteStore):
             for new in new_names:
                 self._require_free(conn, cat_id, category, new)
                 self._insert_subcategory(conn, cat_id, new)
-            return conn.execute(
-                "UPDATE product_category SET needs_review=1 WHERE subcategory_id=? AND source != 'manual'",
+            products = conn.execute(
+                "SELECT item_name, evidence FROM product_category WHERE subcategory_id=? AND source != 'manual'",
                 (sub_id,),
-            ).rowcount
+            ).fetchall()
+            for item_name, raw in products:
+                evidence = evidence_dict(raw)
+                evidence.pop("approval", None)
+                evidence["review_reasons"] = sorted(set(evidence.get("review_reasons", [])) | {"taxonomy_split"})
+                conn.execute("UPDATE product_category SET needs_review=1, evidence=? WHERE item_name=?",
+                             (json.dumps(evidence, ensure_ascii=False), item_name))
+            return len(products)
 
         return self._run(
             "split_subcategory", {"category": category, "name": name, "into": new_names}, op, dry_run

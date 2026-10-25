@@ -6,6 +6,7 @@ Only clean (approved) receipts are inserted.
 """
 
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from typing import List, Dict, Optional
 
@@ -90,6 +91,22 @@ class ProcessedDataStore(SQLiteStore):
             items: List of item dicts
             confidence: Receipt confidence score
         """
+        with self.receipt_transaction(receipt_id, receipt_path, receipt_json_path, store,
+                                      date_of_purchase, items, confidence):
+            pass
+
+    @contextmanager
+    def receipt_transaction(
+        self,
+        receipt_id: str,
+        receipt_path: str,
+        receipt_json_path: str,
+        store: str,
+        date_of_purchase: Optional[str],
+        items: List[Dict],
+        confidence: float,
+    ):
+        """Validate and write, committing only after the caller publishes its outputs."""
         conn = self._connect()
         try:
             processed_at = datetime.now().isoformat()
@@ -142,7 +159,11 @@ class ProcessedDataStore(SQLiteStore):
                     ),
                 )
             conn.execute("DELETE FROM processed_data WHERE receipt_id=? AND item_index>=?", (receipt_id, len(items)))
+            yield conn
             conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
         finally:
             conn.close()
 

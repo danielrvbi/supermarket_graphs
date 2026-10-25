@@ -110,9 +110,9 @@ class ClassificationStore(SQLiteStore):
         needs_review: bool = False,
         evidence: Optional[Dict] = None,
         overwrite_sources: Optional[Iterable[str]] = None,
-    ):
+    ) -> bool:
         """
-        Insert or update a label.
+        Insert or update a label. Return whether a row was written.
 
         Args:
             overwrite_sources: if given, an existing row is only replaced when its
@@ -143,8 +143,9 @@ class ClassificationStore(SQLiteStore):
 
         conn = self._connect()
         try:
-            conn.execute(sql, params)
+            cur = conn.execute(sql, params)
             conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
 
@@ -189,7 +190,7 @@ class ClassificationStore(SQLiteStore):
             conn.close()
 
     def delete_labels(self, sources: Iterable[str]) -> int:
-        """Delete labels from the given sources (used by --rebuild)."""
+        """Explicitly delete labels from the given sources."""
         sources = list(sources)
         conn = self._connect()
         try:

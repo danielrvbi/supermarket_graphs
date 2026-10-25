@@ -8,14 +8,72 @@ Writes:
 """
 
 import json
+import logging
+import os
 import re
+import tempfile
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Dict, Literal
 from datetime import datetime
 
 from v2.common.non_products import is_non_product_item
 from v2.common.settings import settings
 from v2.stage1_extraction.store import ProcessedDataStore
+
+
+@contextmanager
+def staged_outputs(outputs):
+    """Publish a group of files; restore previous bytes on ordinary exceptions.
+
+    Enclose the database transaction inside this context so commit failures also
+    restore files. This is exception rollback, not cross-filesystem crash recovery.
+    """
+    temporary = []
+    published = []
+    retained = set()
+
+    def stage(path, contents):
+        fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+        target = Path(name)
+        temporary.append(target)
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(contents)
+        return target
+
+    try:
+        staged = []
+        for path, contents in outputs:
+            recovery = stage(path, path.read_bytes()) if path.exists() else None
+            staged.append((path, stage(path, contents), recovery))
+
+        def publish():
+            for path, replacement, recovery in staged:
+                os.replace(replacement, path)
+                published.append((path, recovery))
+
+        yield publish
+    except BaseException as original:
+        failures = []
+        for path, recovery in reversed(published):
+            try:
+                if recovery is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(recovery, path)
+            except OSError as error:
+                failures.append(f"{path}: {error}; recovery copy: {recovery}")
+        if failures:
+            retained = {recovery for _, recovery in published if recovery is not None}
+            raise RuntimeError("Output restoration failed: " + "; ".join(failures)) from original
+        raise
+    finally:
+        for path in temporary:
+            if path not in retained:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError as error:
+                    logging.getLogger(__name__).warning("Could not remove temporary output %s: %s", path, error)
 
 
 def sanitize_filename(name: str) -> str:
@@ -85,11 +143,6 @@ class OutputWriter:
                 return {}
         return {}
 
-    def _save_file(self, path: Path, data: Dict):
-        """Save data to JSON file."""
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
     def write_receipt(
         self,
         store: Literal["ah", "jumbo"],
@@ -101,9 +154,8 @@ class OutputWriter:
         """
         Write a receipt to the appropriate output.
 
-        1. Write per-receipt JSON file (always)
-        2. Write to old aggregated backup file (always)
-        3. Insert to SQLite database (only if status == "clean")
+        Stage both JSON files, validate/write clean receipts in a transaction,
+        publish files, then commit. Failures restore previous files and DB rows.
 
         Args:
             store: "ah" or "jumbo"
@@ -139,15 +191,9 @@ class OutputWriter:
             },
         }
 
-        # 1. Write per-receipt JSON file
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(full_data, f, indent=2, ensure_ascii=False)
-
-        print(f"  [{status.upper()}] {json_filename} → {json_path.relative_to(self.processed_dir)}")
-
-        # 2. Write to old aggregated backup file
+        # Build a new backup without changing the in-memory committed snapshot.
         backup_key = (store, status)
-        backup_data = self._backup_data[backup_key]
+        backup_data = self._backup_data[backup_key].copy()
 
         backup_entry = receipt_data.copy()
         if metadata:
@@ -158,10 +204,8 @@ class OutputWriter:
             }
 
         backup_data[receipt_path] = backup_entry
-        self._backup_data[backup_key] = backup_data
-        self._save_file(self.backup_files[backup_key], backup_data)
 
-        # 3. Insert to SQLite database (only clean receipts)
+        transaction = nullcontext()
         if status == "clean":
             # Keep all items in JSON output, but exclude known non-product
             # receipt lines (deposits, savings stamps, cashback, etc.) from
@@ -179,7 +223,7 @@ class OutputWriter:
                 ]
                 print(f"  [FILTERED] {skipped} non-product line(s) excluded from DB: {skipped_names}")
 
-            self.db_writer.insert_receipt(
+            transaction = self.db_writer.receipt_transaction(
                 receipt_id=receipt_id,
                 receipt_path=receipt_path,
                 receipt_json_path=str(json_path),
@@ -188,6 +232,15 @@ class OutputWriter:
                 items=db_items,
                 confidence=metadata.get("confidence", 0.0) if metadata else 0.0,
             )
+
+        outputs = [(path, json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8"))
+                   for path, data in ((json_path, full_data), (self.backup_files[backup_key], backup_data))]
+        with staged_outputs(outputs) as publish:
+            with transaction:
+                publish()
+        self._backup_data[backup_key] = backup_data
+        print(f"  [{status.upper()}] {json_filename} → {json_path.relative_to(self.processed_dir)}")
+        if status == "clean":
             print(f"  [DATABASE] {len(db_items)} items → processed_data.db")
 
     def get_stats(self) -> dict:

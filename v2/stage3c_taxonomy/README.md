@@ -27,10 +27,24 @@ python -m v2.stage3c_taxonomy.cli approve "KIK SOY SAUC"
 python -m v2.stage3c_taxonomy.cli rename Frutas Bayas "Frutos Rojos" --dry-run
 ```
 
-Sync skips manual labels and labels whose `synced_from` still equals the product's v1
-label, so re-running only handles new products and changed v1 labels. Splits are sent
-to Mistral in batches of 25 per v1 label; the model can only choose among that label's
-candidates. Low or medium confidence, or a v1 review flag, sets `needs_review`.
+Sync skips manual labels and automatic labels whose recorded inputs are unchanged.
+Evidence contains a versioned `sync_inputs` snapshot of the v1 category, subcategory,
+Spanish product name, store, and review flag; `synced_from` remains available. Correcting
+an identity input refreshes the assignment, including a corrected Spanish name within
+the same v1 category. Splits are sent to Mistral in batches of 25 per v1 label, constrained
+to that label's candidates. Missing picks stay pending and are retried on later syncs.
+
+Review-flag-only changes update metadata without LLM calls. `review_reasons` records
+upstream review flags, low/medium model confidence, pending splits, and taxonomy splits,
+so clearing one reason cannot clear another. `approve` records approval of the current
+identity and assignment in evidence. That approval survives upstream review-flag changes;
+identity changes or a taxonomy split invalidate it. Manual labels remain protected.
+
+There is no schema migration. Existing automatic labels without input snapshots are
+refreshed once by the next sync (split labels may require LLM calls, or become pending
+with `--no-llm`). Historical approvals without evidence cannot be reconstructed; manually
+set labels are preserved. A new explicit approval also establishes the input snapshot.
+Metadata-only updates contribute to the existing rows-written count.
 
 Labels point to subcategory ids: `rename` and `move` change one row, `merge` repoints
 products and `v1_map`, `split` adds subcategories and flags the products in the source.
