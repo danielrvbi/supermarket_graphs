@@ -15,13 +15,33 @@ Ingredient names:
   no marketing variants (barista, extra, original, light...) unless it changes what the food is
   ("leche" vs "leche sin lactosa" is fine to keep apart; "manzana pink lady" is just "manzana").
 - Prefer the most common everyday name a recipe would use.
+- Name the food, not how it is sold or cooked. Drop:
+  cuisine/style words (italiana, mexicana, provenzal, holandesa, oriental, clásica),
+  cooking method or use (para saltear, para wok, para horno, para hornear, para ensalada),
+  cut or preparation (picada, rallada, en rodajas, lavada, cortada),
+  add-ins and component lists ("con maíz y rábanos", "(calabacín, pimiento y zanahoria)").
+- Never use parentheses. Use at most 4 words.
+- Mixes are named by what they are, not by their flavour: "mezcla de verduras", "ensalada mixta".
+- Keep a separate name only if a recipe would ask for it by that name and another product
+  in the group could not replace it ("verduras para sopa", "hutspot", "lechuga iceberg").
+- When unsure between a specific and a broader name, choose the broader one.
+- Trust the Dutch receipt name when the Spanish name looks like a bad translation
+  (AH KOOL PEEN is a cabbage-and-carrot mix, not "col rallada").
 - Non-food products (cleaning, personal care, pets, household) get a generic product name instead
   ("champú", "detergente en cápsulas", "esponja") with is_food=false.
 - If an existing ingredient below is the same thing, copy its name exactly. Only invent a new name when
   none fits.
 
+Examples (wrong -> right):
+  mezcla italiana para saltear              -> mezcla de verduras
+  verduras para horno (calabacín, pimiento) -> mezcla de verduras
+  lechuga iceberg con maíz y rábanos        -> ensalada mixta
+  espinaca baby orgánica                    -> espinaca
+
 Every product number must appear in exactly one group.
-confidence: high = clearly this ingredient; medium = most likely; low = guessing.
+confidence: high = every product in the group is clearly the same food;
+medium = you merged products whose descriptions differ;
+low = the Dutch and Spanish names disagree or you are guessing.
 reasoning: a few words.
 """
 

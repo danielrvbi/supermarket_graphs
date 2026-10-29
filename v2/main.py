@@ -25,9 +25,10 @@ Stage 3 - classification (normalized_data -> classified_data):
     python -m v2.main review-labels list      # Items flagged for review
     python -m v2.main review-labels set <item> <category> <subcategory>
 
-Stage 3D - ingredients (item_labels + v2 taxonomy -> product_ingredient):
+Stage 3D - ingredients (item_labels + v2 taxonomy -> JSONL proposals -> product_ingredient):
     python -m v2.main ingredients assign --dry-run --no-llm   # Batches + cost estimate, no API calls
-    python -m v2.main ingredients assign --subcategory "Verduras > Lechuga y Ensaladas"
+    python -m v2.main ingredients assign --subcategory "Verduras > Lechuga y Ensaladas"   # Writes a JSONL
+    python -m v2.main ingredients apply --subcategory "Verduras > Lechuga y Ensaladas"    # Checked JSONL -> db
     python -m v2.main ingredients status
 
 Aliases: ah, jumbo, ah-batch, jumbo-batch (same as extract / extract-batch).

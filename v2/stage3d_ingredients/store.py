@@ -5,7 +5,8 @@ Tables (all in processed/processed_data.db), next to the untouched item_labels a
 taxonomy tables:
 - ingredient:             canonical names (lowercase, singular, Spanish, no brand);
                           active=0 + merged_into once merged away
-- product_ingredient:     one ingredient per product (item_name, as in item_labels)
+- product_ingredient:     one ingredient per product (item_name, as in item_labels), written
+                          only by apply.py (checked proposals) and the manual operations
 - ingredient_change_log:  every manual operation, with its arguments and products affected
 - view classified_ingredients: classified_v2 + its ingredient
 
@@ -37,8 +38,8 @@ CREATE TABLE IF NOT EXISTS ingredient (
 
 CREATE TABLE IF NOT EXISTS product_ingredient (
     item_name TEXT PRIMARY KEY,     -- item_labels.item_name
-    ingredient_id INTEGER REFERENCES ingredient(id),   -- NULL while pending
-    source TEXT NOT NULL,           -- llm | manual | pending
+    ingredient_id INTEGER REFERENCES ingredient(id),
+    source TEXT NOT NULL,           -- llm (applied proposal) | manual (edited proposal or `set`)
     confidence REAL,
     needs_review INTEGER DEFAULT 0,
     evidence TEXT,                  -- JSON: inputs snapshot, llm name/reasoning, review_reasons
@@ -345,42 +346,6 @@ class IngredientStore(SQLiteStore):
                 continue
             applied.append(item_name)
         return applied
-
-    def approve(self, item_name: Optional[str] = None, subcategory_label: Optional[str] = None,
-                ingredient: Optional[str] = None, dry_run: bool = False) -> Dict:
-        """Clear the review flag of one product, a whole subcategory, or all products of an ingredient."""
-        if sum(x is not None for x in (item_name, subcategory_label, ingredient)) != 1:
-            raise IngredientError("approve takes exactly one of item_name, subcategory, ingredient")
-
-        def op(conn):
-            where, params = "pi.ingredient_id IS NOT NULL AND pi.needs_review = 1", []
-            if item_name:
-                where += " AND pi.item_name = ?"
-                params.append(item_name)
-            elif ingredient:
-                row = self.find(conn, ingredient)
-                if row is None:
-                    raise IngredientError(f"Unknown ingredient {ingredient!r}")
-                where += " AND pi.ingredient_id = ?"
-                params.append(row["id"])
-            else:
-                category, subcategory = subcategory_label.split(LABEL_SEP, 1)
-                where += """ AND pi.item_name IN (
-                    SELECT pc.item_name FROM product_category pc JOIN subcategory s ON s.id = pc.subcategory_id
-                    JOIN category c ON c.id = s.category_id WHERE c.name = ? AND s.name = ?)"""
-                params += [category.strip(), subcategory.strip()]
-            rows = conn.execute(f"SELECT pi.item_name, pi.ingredient_id, pi.evidence FROM product_ingredient pi WHERE {where}",
-                                params).fetchall()
-            now = datetime.now().isoformat()
-            for r in rows:
-                evidence = evidence_dict(r["evidence"])
-                evidence["approved"] = {"ingredient_id": r["ingredient_id"], "at": now}
-                conn.execute("UPDATE product_ingredient SET needs_review=0, evidence=?, updated_at=? WHERE item_name=?",
-                             (json.dumps(evidence, ensure_ascii=False), now, r["item_name"]))
-            return len(rows)
-
-        payload = {"item_name": item_name, "subcategory": subcategory_label, "ingredient": ingredient}
-        return self._run("approve", {k: v for k, v in payload.items() if v}, op, dry_run)
 
     def rename(self, old: str, new: str, dry_run: bool = False) -> Dict:
         new = clean_name(new)

@@ -32,3 +32,7 @@ v2/checkpoints/
 
 # Local test receipt list (real filenames contain dates/store numbers)
 v2/stage1_extraction/tests/test_files.local.json
+
+# Stage 3D ingredient proposals (product names from receipts)
+v2/stage3d_ingredients/proposals/
+v2/stage3d_ingredients/reviews/
