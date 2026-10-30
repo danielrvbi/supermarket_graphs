@@ -14,6 +14,20 @@ we move on to the next category.
 Read `README.md` in this folder for the code and file format. This file covers **how to
 run it**.
 
+> **Status (2026-10-30): done.** All 1,067 products are linked in the db to 372 active
+> ingredient names (300 food, 72 non-food). 142 of those names have products from both
+> stores. All review decisions are settled and applied.
+>
+> - **Next step:** graph export (not started).
+> - **Archive:** the applied proposal files and the review (`reviews/DECISIONS.md`,
+>   `corrections.json`, the category reports, `OPEN_DECISIONS.md`) were moved to
+>   `processed/audits/stage3d_ingredients_2026-10/` (gitignored). Paths below that say
+>   `proposals/` or `reviews/` refer to that archive now.
+> - **db backups:** `processed/processed_data.before_ingredients_apply_*.db` and
+>   `processed/processed_data.before_open_decisions_*.db`.
+>
+> The rest of this file is the history of how the work was run.
+
 ---
 
 ## Ground rules for the agent
@@ -82,6 +96,11 @@ later, one category at a time (the loop below). Estimates are free with
 | 4 | Panadería + Bebidas | 8 + 7 | $0.045 | **done** |
 | 5 | Snacks + Dulces + Comida Preparada | 4 + 5 + 1 | $0.024 | **done** |
 | 6 | Cuidado Personal y Salud + Limpieza y Lavandería + Hogar (non-food) | 10 + 4 + 8 | $0.053 | **done** (batches 4–6 together: $0.096) |
+
+**Open decisions applied (2026-10-30).** All 47 groups are settled (see `reviews/DECISIONS.md`).
+- The db now has **372 active names**: 300 food and 72 non-food. 142 of them are shared by both stores.
+- There are 167 manual links.
+- D8 was kept as it was.
 
 **Applied (2026-10-29).** Every proposal file has been applied and moved to `proposals/<category>/applied/`.
 - `product_ingredient` has **1,067 links**: 922 `llm` and 145 `manual`, none missing and none flagged.
