@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     CHECKPOINTS_DIR: str = Field(default="v2/checkpoints", description="LangGraph checkpoints directory")
     TOKEN_USAGE_DB: str = Field(default="v2/checkpoints/token_usage.db", description="Token usage database path")
     PROCESSED_DB: str = Field(default="processed/processed_data.db", description="Processed data database path")
+    GRAPH_DB: str = Field(default="processed/graph.db", description="Clean db for graph ingestion (stage 4, rebuilt)")
 
     # Pipeline settings
     CONFIDENCE_THRESHOLD_APPROVE: float = Field(default=0.95, description="Auto-approve threshold")

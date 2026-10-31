@@ -18,6 +18,7 @@ in `processed/processed_data.db`.
 | 2. Normalization | `stage2_normalization/` | `processed_data` | `normalized_data` | `python -m v2.main normalize` |
 | 3. Classification | `stage3_classification/` | `normalized_data` + `old_data.csv` | `item_labels`, `classified_data` | `python -m v2.main classify` |
 | 3D. Ingredients | `stage3d_ingredients/` | `item_labels` + v2 taxonomy (3C) | `ingredient`, `product_ingredient` | `python -m v2.main ingredients assign ...` |
+| 4. Graph db | `stage4_graph_db/` | processing db (all of the above) | `processed/graph.db` (separate file, rebuilt) | `python -m v2.main graph-db` |
 
 Rule: a stage imports from `common/` and may read the previous stage's `store.py`, never a later stage.
 
@@ -413,6 +414,8 @@ v2/
 │   │   └── name_standardizer.py # Name cleanup
 │   └── tests/               # Deterministic unit tests (pytest)
 ├── stage3_classification/   # Stage 3: normalized_data → classified_data (see its README)
+├── stage3d_ingredients/     # Stage 3D: product → ingredient (see its README / HANDOFF)
+├── stage4_graph_db/         # Stage 4: processed/graph.db, the clean db for graph ingestion
 └── checkpoints/             # LangGraph SQLite databases (gitignored)
 ```
 

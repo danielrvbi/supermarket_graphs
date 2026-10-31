@@ -31,6 +31,10 @@ Stage 3D - ingredients (item_labels + v2 taxonomy -> JSONL proposals -> product_
     python -m v2.main ingredients apply --subcategory "Verduras > Lechuga y Ensaladas"    # Checked JSONL -> db
     python -m v2.main ingredients status
 
+Stage 4 - graph db (processing db -> processed/graph.db, rebuilt from scratch):
+    python -m v2.main graph-db                # Build the clean db for graph ingestion
+    python -m v2.main graph-db --out <path>   # Build somewhere else
+
 Aliases: ah, jumbo, ah-batch, jumbo-batch (same as extract / extract-batch).
 """
 
@@ -92,6 +96,10 @@ def main():
         from v2.stage3b_classification_review.cli import main as review_main
         sys.argv = [sys.argv[0]] + args
         review_main()
+    elif command == "graph-db":
+        from v2.stage4_graph_db.run import main as graph_db_main
+        sys.argv = [sys.argv[0]] + args
+        graph_db_main()
     elif command == "ingredients" and args:
         from v2.stage3d_ingredients.cli import main as ingredients_main
         sys.argv = [sys.argv[0]] + args

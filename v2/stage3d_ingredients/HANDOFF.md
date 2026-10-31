@@ -18,7 +18,8 @@ run it**.
 > ingredient names (300 food, 72 non-food). 142 of those names have products from both
 > stores. All review decisions are settled and applied.
 >
-> - **Next step:** graph export (not started).
+> - **Next step:** load `processed/graph.db` into the graph DB. Stage 4 (`v2/stage4_graph_db/`)
+>   now builds that clean db from the processing db with `python -m v2.main graph-db`.
 > - **Archive:** the applied proposal files and the review (`reviews/DECISIONS.md`,
 >   `corrections.json`, the category reports, `OPEN_DECISIONS.md`) were moved to
 >   `processed/audits/stage3d_ingredients_2026-10/` (gitignored). Paths below that say
