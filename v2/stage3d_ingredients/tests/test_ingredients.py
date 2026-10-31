@@ -135,6 +135,27 @@ def test_key_ignores_accents_case_and_plurals():
     assert ingredient_key("Limones") == ingredient_key("limón")
     assert ingredient_key("Leche de Avena") == ingredient_key("leche de avena")
     assert ingredient_key("pan") != ingredient_key("papa")
+    assert ingredient_key("tomate") == ingredient_key("tomates")
+    assert ingredient_key("pan") == ingredient_key("panes")
+    assert ingredient_key("nuez") == ingredient_key("nueces")
+    assert ingredient_key("leche") == ingredient_key("leches")
+    assert ingredient_key("salsa de tomates") == ingredient_key("salsa de tomate")
+    assert ingredient_key("sal") != ingredient_key("salsa")
+
+
+def test_singular_and_plural_share_one_ingredient(db):
+    conn = db.connect()
+    try:
+        first, created = db.get_or_create(conn, "tomate", True)
+        assert created
+        assert db.get_or_create(conn, "tomates", True) == (first, False)
+        conn.execute("INSERT INTO ingredient (name) VALUES ('tomates')")   # left over from the old key
+        assert db.duplicate_keys(conn) == [["tomate", "tomates"]]
+        conn.commit()
+    finally:
+        conn.close()
+    assert db.merge("tomate", "tomates")["items_affected"] == 0   # exact names, not the shared key
+    assert db.duplicate_keys() == [] and ingredient_names(db) == ["tomates"]
 
 
 def test_assign_writes_one_jsonl_per_subcategory_and_no_db_rows(db, root):
@@ -361,3 +382,64 @@ def test_budget_stops_before_the_call_that_would_exceed_it(db, root):
     namer.model = "mistral-large-latest"
     report = propose(db, root, namer, budget=0.0001)
     assert namer.calls == 0 and report.stopped_by_budget
+
+
+def edit_lines(path, **changes):
+    """changes: {item_name: {key: value}}"""
+    lines = proposals.read(path)
+    for line in lines:
+        line.update(changes.get(line["item_name"], {}))
+    proposals.write(path, lines)
+
+
+def is_food_of(db, name):
+    return {i["name"]: i["is_food"] for i in db.ingredient_summary()}[name]
+
+
+def test_edited_is_food_updates_an_existing_ingredient(db, root):
+    propose(db, root, FakeNamer(), subcategory=HAIR)
+    path = proposals.path_for(HAIR, root)
+    lines = proposals.read(path)
+    apply_file(db, path)
+    assert is_food_of(db, "champú") == 0
+    proposals.write(path, lines)      # the same proposal again, now corrected
+    edit_lines(path, **{"H&S SHAMPOO": {"is_food": True}})
+    report = apply_file(db, path)
+    assert report.is_food_changed == ["champú"] and is_food_of(db, "champú") == 1
+
+
+def test_unedited_is_food_keeps_a_manual_flag(db, root):
+    db.set_manual("JUMBO SPINAZIE GEWAS", "espinaca", is_food=False)
+    propose(db, root, FakeNamer(), subcategory=SALAD)
+    report = apply_file(db, proposals.path_for(SALAD, root))
+    assert report.is_food_changed == [] and is_food_of(db, "espinaca") == 0
+
+
+def test_conflicting_is_food_edits_abort(db, root):
+    propose(db, root, FakeNamer(), subcategory=SALAD)
+    path = proposals.path_for(SALAD, root)
+    edit_lines(path, **{"AH SPINAZIE": {"is_food": False},
+                        "JUMBO SPINAZIE GEWAS": {"llm_is_food": False}})
+    with pytest.raises(IngredientError):
+        apply_file(db, path)
+    assert db_rows(db) == ([], []) and path.exists()
+
+
+def test_each_apply_keeps_its_own_archived_file(db, root):
+    propose(db, root, FakeNamer(), subcategory=SALAD)
+    path = proposals.path_for(SALAD, root)
+    lines = proposals.read(path)
+    edit_lines(path, **{"AH IJSBERGSLA": {"ingredient": "lechuga iceberg"}})
+    first = Path(apply_file(db, path).moved_to)
+    proposals.write(path, lines)      # a later file for the same subcategory
+    second = Path(apply_file(db, path).moved_to)
+    assert first != second and first.exists() and second.exists()
+    assert {l["ingredient"] for l in proposals.read(first)} == {"espinaca", "lechuga iceberg"}
+    assert {l["ingredient"] for l in proposals.read(second)} == {"espinaca", "lechuga"}
+
+
+def test_budget_refuses_a_model_without_pricing(db, root):
+    namer = FakeNamer()     # model "fake" has no pricing
+    with pytest.raises(ValueError, match="No pricing"):
+        propose(db, root, namer, budget=0)
+    assert namer.calls == 0 and proposals.files(root) == []

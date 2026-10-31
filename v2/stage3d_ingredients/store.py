@@ -87,20 +87,26 @@ def _plain(text: str) -> str:
     return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower().strip()
 
 
-def _singular(word: str) -> str:
+def _stem(word: str) -> str:
+    """
+    Reduce singular and plural to the same stem (not a real word, only compared):
+    tomate/tomates -> tomat, limon/limones -> limon, pan/panes -> pan, nuez/nueces -> nuec.
+    """
     if len(word) <= 3:
         return word
-    if word.endswith("es") and word[-3] not in "aeiou":
-        return word[:-2]          # limones -> limon, panes -> pan
     if word.endswith("s"):
-        return word[:-1]          # fresas -> fresa
+        word = word[:-1]          # fresas -> fresa, tomates -> tomate, limones -> limone
+    if word.endswith("e") and len(word) > 3 and word[-2] not in "aeiou":
+        word = word[:-1]          # tomate -> tomat, limone -> limon, pane -> pan
+    if word.endswith("z"):
+        word = word[:-1] + "c"    # nuez -> nuec (nueces -> nuece -> nuec)
     return word
 
 
 def ingredient_key(name: str) -> str:
     """Identity of a name: no accents, case, punctuation or plural endings."""
     words = re.findall(r"[a-z0-9]+", _plain(name))
-    return " ".join(_singular(w) for w in words)
+    return " ".join(_stem(w) for w in words)
 
 
 def clean_name(name: str) -> str:
@@ -202,12 +208,32 @@ class IngredientStore(SQLiteStore):
         return [r[0] for r in rows]
 
     def find(self, conn, name: str) -> Optional[sqlite3.Row]:
-        """The active ingredient with the same key as name (following merges), or None."""
+        """
+        The ingredient with exactly this name, else the active one with the same key
+        (following merges), or None. Exact first, so two names sharing a key can be merged.
+        """
+        row = conn.execute("SELECT * FROM ingredient WHERE name = ?", (" ".join(name.split()).lower(),)).fetchone()
+        if row is not None:
+            return self._follow(conn, row)
         key = ingredient_key(name)
         for row in conn.execute("SELECT * FROM ingredient ORDER BY active DESC, id").fetchall():
             if ingredient_key(row["name"]) == key:
                 return self._follow(conn, row)
         return None
+
+    def duplicate_keys(self, conn=None) -> List[List[str]]:
+        """Groups of active ingredients that share a key (left over from an older key); merge them."""
+        own = conn is None
+        conn = conn or self.connect()
+        try:
+            names = [r[0] for r in conn.execute("SELECT name FROM ingredient WHERE active = 1 ORDER BY id")]
+        finally:
+            if own:
+                conn.close()
+        groups: Dict[str, List[str]] = {}
+        for name in names:
+            groups.setdefault(ingredient_key(name), []).append(name)
+        return [g for g in groups.values() if len(g) > 1]
 
     def ingredient_summary(self, subcategory_label: Optional[str] = None, shared: bool = False) -> List[Dict]:
         """Active ingredients with their products ([store] item_name (producto_es))."""

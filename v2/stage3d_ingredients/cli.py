@@ -22,9 +22,9 @@ Usage:
 
 assign never writes the db: each subcategory becomes proposals/<category>__<subcategory>.jsonl.
 Check (and edit the `ingredient` field of) the file, then `apply` it; applied files move to
-proposals/applied/. A live assign (LLM calls) needs one of --subcategory / --category /
---max-subcategories / --all. --dry-run calls the LLM but writes no file; add --no-llm to skip
-the LLM too.
+proposals/<category>/applied/ with a timestamp. A live assign (LLM calls) needs one of
+--subcategory / --category / --max-subcategories / --all. --dry-run calls the LLM but writes
+no file; add --no-llm to skip the LLM too.
 item_labels and the v2 taxonomy are never modified. `set` links are never overwritten.
 """
 
@@ -170,6 +170,8 @@ def cmd_apply(db: IngredientStore, args):
                             ("already manual (kept)", r.kept_manual), ("unknown product", r.unknown)):
             if items:
                 print(f"  {what}: {', '.join(items)}")
+        if r.is_food_changed:
+            print(f"  is_food changed: {', '.join(r.is_food_changed)}")
         if r.moved_to:
             print(f"  moved to {r.moved_to}")
 
@@ -185,9 +187,13 @@ def cmd_assign(db: IngredientStore, args):
         sys.exit(1)
     model = args.model or settings.INGREDIENT_MODEL
     namer = None if preview else LLMIngredientNamer(model=model)
-    report = assign(db, namer=namer, subcategory=args.subcategory, category=args.category,
-                    max_subcategories=args.max_subcategories, dry_run=args.dry_run, model=model,
-                    keep_prompts=args.show_prompt, redo=args.redo, budget=args.budget)
+    try:
+        report = assign(db, namer=namer, subcategory=args.subcategory, category=args.category,
+                        max_subcategories=args.max_subcategories, dry_run=args.dry_run, model=model,
+                        keep_prompts=args.show_prompt, redo=args.redo, budget=args.budget)
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
     if not report.results:
         print("Nothing to assign for this selection.")
     print_report(report, args.show_prompt, preview)
@@ -225,6 +231,9 @@ def cmd_status(db: IngredientStore):
           f"{total['flagged']:5} {sum(waiting.values()):5} {sum(len(v) for v in work.values()):5}")
     print("llm/man = in the db; prop = in proposal files waiting for review; todo = not proposed yet")
     print(f"subcategories not proposed yet: {len(work)}   proposal files: {len(waiting)}")
+    for names in db.duplicate_keys():
+        print(f"! same ingredient under {len(names)} names: {', '.join(names)}  "
+              f"(merge <other> {names[0]!r} to keep one)")
 
     try:
         usage = sqlite3.connect(settings.TOKEN_USAGE_DB)

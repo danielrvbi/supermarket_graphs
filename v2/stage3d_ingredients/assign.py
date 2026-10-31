@@ -225,11 +225,15 @@ def assign(
         redo: propose again for subcategories that already have a proposal file (overwrites it)
         root: proposals directory (default proposals.PROPOSALS_DIR)
         budget: max estimated USD for this run's LLM calls; stops before the subcategory
-                that would exceed it (estimate at the model's pricing, see estimate_tokens)
+                that would exceed it (estimate at the model's pricing, see estimate_tokens).
+                A model without pricing raises ValueError before any call.
     """
     if namer is None and not dry_run:
         raise ValueError("assign without a namer is a preview: pass dry_run=True")
     report = AssignReport(model=namer.model if namer else model, dry_run=dry_run)
+    if namer is not None and budget is not None and estimate_cost(1, 1, report.model) is None:
+        raise ValueError(f"No pricing for model {report.model!r}, so --budget cannot be checked; "
+                         f"add it to v2/common/pricing.py")
     conn = db.connect()
     try:
         work, skipped = pending_work(db, conn, root, redo)
@@ -296,7 +300,10 @@ def subcategory_cost(known: "Known", label: str, products: List[Dict], model: st
     total = 0.0
     for start in range(0, len(products), CHUNK_SIZE):
         chunk = products[start:start + CHUNK_SIZE]
-        total += estimate_cost(*estimate_tokens(render_prompt(label, vocabulary, chunk), len(chunk)), model) or 0.0
+        cost = estimate_cost(*estimate_tokens(render_prompt(label, vocabulary, chunk), len(chunk)), model)
+        if cost is None:
+            raise ValueError(f"No pricing for model {model!r}")
+        total += cost
     return total
 
 
@@ -306,7 +313,8 @@ def proposal_line(product: Dict, label: str, ingredient: Optional[str], is_food:
     return {
         "item_name": product["item_name"], "store": product["store"], "producto_es": product["producto_es"],
         "category": category, "subcategory": subcategory,
-        "ingredient": ingredient, "is_food": is_food, "llm_ingredient": ingredient, "new": new,
+        "ingredient": ingredient, "is_food": is_food, "llm_ingredient": ingredient, "llm_is_food": is_food,
+        "new": new,
         "confidence": confidence, "reasoning": reasoning, "model": model, "pending": pending,
         "too_specific": too_specific(ingredient),
         "inputs": product_inputs(product), "proposed_at": datetime.now().isoformat(timespec="seconds"),

@@ -9,7 +9,7 @@ generic product name (`champú`) with `is_food=0`.
 **`assign` never writes the db.** Each category gets a folder in `proposals/`
 (gitignored, like `processed/`), and each subcategory becomes one JSONL file in it.
 Once you have checked a file, `apply` writes it to the db and moves it to
-`proposals/<category>/applied/`.
+`proposals/<category>/applied/`, timestamped so every applied file is kept.
 
 ```
 assign  ->  proposals/verduras/lechuga_y_ensaladas.jsonl  ->  (you check / edit)  ->  apply  ->  db

@@ -5,22 +5,25 @@ one line per product.
 assign writes them, a person checks (and may edit) them, apply writes them to the db.
 
     proposals/<category>/<subcategory>.jsonl            waiting for review
-    proposals/<category>/applied/<subcategory>.jsonl    already written to the db
+    proposals/<category>/applied/<subcategory>.<timestamp>.jsonl    already written to the db (one per apply)
 
 Line keys:
     item_name, store, producto_es, category, subcategory
     ingredient      editable: the name that apply will write (null = leave unassigned)
     is_food         editable
     llm_ingredient  what the model returned (as resolved); never edit
+    llm_is_food     what the model returned for is_food; never edit
     new             no ingredient with this name existed when proposed
     confidence, reasoning, model, pending (why there is no ingredient), inputs, proposed_at
     too_specific    the name breaks the naming rules (parentheses, cooking use, > 4 words)
 
 An edited `ingredient` (different from llm_ingredient) is applied as a manual link.
+An edited `is_food` (different from llm_is_food) updates the ingredient, even one that exists.
 """
 
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
@@ -48,8 +51,15 @@ def path_for(label: str, root: Optional[Path] = None) -> Path:
     return category_dir(category, root) / f"{slug(subcategory)}.jsonl"
 
 
-def applied_path(path: Path) -> Path:
-    return path.parent / "applied" / path.name
+def applied_path(path: Path, when: Optional[datetime] = None) -> Path:
+    """applied/<subcategory>.<timestamp>.jsonl, never an existing file (each apply keeps its own copy)."""
+    stamp = (when or datetime.now()).strftime("%Y%m%dT%H%M%S")
+    folder, n = path.parent / "applied", 1
+    while True:
+        target = folder / f"{path.stem}.{stamp}{'' if n == 1 else f'-{n}'}.jsonl"
+        if not target.exists():
+            return target
+        n += 1
 
 
 def write(path: Path, lines: Iterable[Dict]) -> Path:

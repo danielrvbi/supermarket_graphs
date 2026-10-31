@@ -1,5 +1,6 @@
 """
-Write a checked proposal file (proposals/*.jsonl) to the db, then move it to proposals/applied/.
+Write a checked proposal file (proposals/*.jsonl) to the db, then move it to
+proposals/<category>/applied/<subcategory>.<timestamp>.jsonl (earlier applies are kept).
 
 Per line:
 - ingredient null              -> skipped (product stays unassigned; proposed again next assign)
@@ -7,6 +8,7 @@ Per line:
 - ingredient edited by hand    -> source=manual (never overwritten by assign)
 - inputs no longer match the product (producto_es / store / v2 subcategory changed) -> stale, skipped
 - product already linked by hand -> skipped
+- is_food edited (!= llm_is_food) -> written to the ingredient, even one that already exists
 
 Applied links are needs_review=0: reviewing the file is the review. The whole file is one
 transaction, logged in ingredient_change_log; an invalid name aborts it.
@@ -36,8 +38,16 @@ class ApplyReport:
     kept_manual: List[str] = field(default_factory=list)
     unknown: List[str] = field(default_factory=list)
     new_ingredients: int = 0
+    is_food_changed: List[str] = field(default_factory=list)   # ingredient names
     dry_run: bool = False
     moved_to: str = ""
+
+
+def is_food_edited(line: Dict) -> bool:
+    """is_food changed by the reviewer (files without llm_is_food: any explicit value counts)."""
+    if line.get("is_food") is None:
+        return False
+    return "llm_is_food" not in line or bool(line["is_food"]) != bool(line["llm_is_food"])
 
 
 def apply_file(db: IngredientStore, path: Path, dry_run: bool = False) -> ApplyReport:
@@ -46,12 +56,18 @@ def apply_file(db: IngredientStore, path: Path, dry_run: bool = False) -> ApplyR
     report = ApplyReport(file=path.name, dry_run=dry_run)
 
     bad = []
+    edited_food: Dict[str, bool] = {}     # ingredient key -> edited is_food
     for n, line in enumerate(lines, 1):
         if line.get("ingredient"):
             try:
-                clean_name(line["ingredient"])
+                key = ingredient_key(clean_name(line["ingredient"]))
             except IngredientError as e:
                 bad.append(f"line {n} ({line['item_name']}): {e}")
+                continue
+            if is_food_edited(line):
+                if edited_food.setdefault(key, bool(line["is_food"])) != bool(line["is_food"]):
+                    bad.append(f"line {n} ({line['item_name']}): is_food of {line['ingredient']!r} "
+                               f"differs from another edited line")
     if bad:
         raise IngredientError("Fix these lines first:\n  " + "\n  ".join(bad))
 
@@ -79,6 +95,11 @@ def apply_file(db: IngredientStore, path: Path, dry_run: bool = False) -> ApplyR
             is_food = True if line.get("is_food") is None else bool(line["is_food"])
             ing_id, created = db.get_or_create(conn, name, is_food)
             report.new_ingredients += created
+            if not created and is_food_edited(line):
+                row = conn.execute("SELECT name, is_food FROM ingredient WHERE id=?", (ing_id,)).fetchone()
+                if bool(row["is_food"]) != is_food:
+                    conn.execute("UPDATE ingredient SET is_food=? WHERE id=?", (int(is_food), ing_id))
+                    report.is_food_changed.append(row["name"])
             if edited:
                 report.manual += 1
             else:
