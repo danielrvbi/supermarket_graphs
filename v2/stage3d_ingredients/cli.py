@@ -18,6 +18,7 @@ Usage:
     python -m v2.stage3d_ingredients.cli set <item_name> <ingredient> [--non-food]
     python -m v2.stage3d_ingredients.cli rename <old> <new> [--dry-run]
     python -m v2.stage3d_ingredients.cli merge <from> <into> [--dry-run]
+    python -m v2.stage3d_ingredients.cli restore <name> [--dry-run]   # Undo a merge: reactivate <name>, then merge into it
     python -m v2.stage3d_ingredients.cli log
 
 assign never writes the db: each subcategory becomes proposals/<category>__<subcategory>.jsonl.
@@ -321,6 +322,9 @@ def main():
         p.add_argument(a)
         p.add_argument(b)
         p.add_argument("--dry-run", action="store_true", help="Preview without saving")
+    p = sub.add_parser("restore", help="Reactivate a merged-away ingredient (then merge into it)")
+    p.add_argument("name")
+    p.add_argument("--dry-run", action="store_true", help="Preview without saving")
     sub.add_parser("log", help="Show applied manual changes")
 
     args = parser.parse_args()
@@ -353,6 +357,8 @@ def main():
             result = db.rename(args.old, args.new, args.dry_run)
         elif args.command == "merge":
             result = db.merge(args.source, args.into, args.dry_run)
+        elif args.command == "restore":
+            result = db.restore(args.name, args.dry_run)
     except IngredientError as e:
         print(f"Error: {e}")
         sys.exit(1)

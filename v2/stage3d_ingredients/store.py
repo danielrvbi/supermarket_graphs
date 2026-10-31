@@ -403,6 +403,18 @@ class IngredientStore(SQLiteStore):
 
         return self._run("merge", {"from": source, "into": into}, op, dry_run)
 
+    def restore(self, name: str, dry_run: bool = False) -> Dict:
+        """Make a merged-away ingredient active again, with no products (merge into it to move them)."""
+
+        def op(conn):
+            row = conn.execute("SELECT * FROM ingredient WHERE name = ?", (clean_name(name),)).fetchone()
+            if row is None or row["active"]:
+                raise IngredientError(f"{name!r} is not a merged-away ingredient")
+            conn.execute("UPDATE ingredient SET active=1, merged_into=NULL WHERE id=?", (row["id"],))
+            return 0
+
+        return self._run("restore", {"ingredient": name}, op, dry_run)
+
     # ------------------------------------------------------------------
     # helpers
     # ------------------------------------------------------------------

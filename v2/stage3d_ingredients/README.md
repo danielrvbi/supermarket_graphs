@@ -39,7 +39,7 @@ When `apply` reads a line:
 |-------|---------|
 | `ingredient` | canonical names; `active=0` + `merged_into` once merged away |
 | `product_ingredient` | one ingredient per product: `source` (`llm` · `manual`), `evidence` (inputs, model answer, proposal file) |
-| `ingredient_change_log` | every apply / set / rename / merge |
+| `ingredient_change_log` | every apply / set / rename / merge / restore |
 | view `classified_ingredients` | `classified_v2` + `ingredient` / `is_food` |
 
 Reads `item_labels` and the 3C tables (`product_category`, `subcategory`, `category`) and
@@ -79,6 +79,7 @@ python -m v2.stage3d_ingredients.cli status                                 # db
 python -m v2.stage3d_ingredients.cli show --shared                          # ingredients in both stores (db)
 python -m v2.stage3d_ingredients.cli set "OATLY" "leche de avena"
 python -m v2.stage3d_ingredients.cli merge "espinaca baby" espinaca --dry-run
+python -m v2.stage3d_ingredients.cli restore "espinaca baby"   # undo: reactivate, then merge back into it
 python -m v2.stage3d_ingredients.cli rename "papa" "patata"
 ```
 

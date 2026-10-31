@@ -443,3 +443,16 @@ def test_budget_refuses_a_model_without_pricing(db, root):
     with pytest.raises(ValueError, match="No pricing"):
         propose(db, root, namer, budget=0)
     assert namer.calls == 0 and proposals.files(root) == []
+
+
+def test_restore_undoes_a_merge_the_other_way(db, root):
+    propose(db, root, FakeNamer(), subcategory=MILK)
+    apply_all(db, root)
+    db.set_manual("OATLY", "bebida de avena")
+    db.merge("bebida de avena", "leche de avena")
+    with pytest.raises(IngredientError):
+        db.restore("leche de avena")          # still active
+    db.restore("bebida de avena")
+    assert db.merge("leche de avena", "bebida de avena")["items_affected"] == 2
+    assert ingredient_names(db) == ["bebida de avena"]
+    assert {l["ingredient"] for l in links(db).values()} == {"bebida de avena"}
